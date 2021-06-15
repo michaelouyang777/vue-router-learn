@@ -1,5 +1,6 @@
 /* @flow */
 
+// 引入install函数
 import { install } from './install'
 import { START } from './util/route'
 import { assert, warn } from './util/warn'
@@ -18,13 +19,18 @@ import type { Matcher } from './create-matcher'
 
 import { isNavigationFailure, NavigationFailureType } from './util/errors'
 
+/**
+ * VueRouter类
+ */
 export default class VueRouter {
+  // 声明静态属性（赋值在类外面）
   static install: () => void
   static version: string
   static isNavigationFailure: Function
   static NavigationFailureType: any
   static START_LOCATION: Route
 
+  // 声明实例属性
   app: any
   apps: Array<any>
   ready: boolean
@@ -280,12 +286,15 @@ function createHref (base: string, fullPath: string, mode) {
   return base ? cleanPath(base + '/' + path) : path
 }
 
+// VueRouter类有5个静态属性，全局在类外面统一赋值，值的内容都是从外面引入
+// 将引入install函数挂载到VueRouter的静态类方法中
 VueRouter.install = install
 VueRouter.version = '__VERSION__'
 VueRouter.isNavigationFailure = isNavigationFailure
 VueRouter.NavigationFailureType = NavigationFailureType
 VueRouter.START_LOCATION = START
 
+// 如果是浏览器环境，自动执行 Vue.use(VueRouter) 挂载路由
 if (inBrowser && window.Vue) {
   window.Vue.use(VueRouter)
 }
