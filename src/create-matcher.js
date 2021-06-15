@@ -1,5 +1,12 @@
 /* @flow */
 
+/**
+ * 该文件内处理的事情：
+ *   进行路由地址到路由对象的转换、
+ *   路由记录的映射、
+ *   路由参数处理等操作
+ */
+
 import type VueRouter from './index'
 import { resolvePath } from './util/path'
 import { assert, warn } from './util/warn'
@@ -9,6 +16,13 @@ import { createRouteMap } from './create-route-map'
 import { normalizeLocation } from './util/location'
 import { decode } from './util/query'
 
+/**
+ * 声明Matcher对象
+ * match：根据location匹配路由方法
+ * addRoutes：注册路由方法
+ * addRoute：注册单个路由的方法
+ * getRoutes：获取routes对象
+ */
 export type Matcher = {
   match: (raw: RawLocation, current?: Route, redirectedFrom?: Location) => Route;
   addRoutes: (routes: Array<RouteConfig>) => void;
@@ -16,12 +30,22 @@ export type Matcher = {
   getRoutes: () => Array<RouteRecord>;
 };
 
+/**
+ * 路由匹配器
+ * 进行路由地址到路由对象的转换、路由记录的映射、路由参数处理等操作
+ * @param {*} routes 
+ * @param {*} router 
+ */
 export function createMatcher (
   routes: Array<RouteConfig>,
   router: VueRouter
 ): Matcher {
   const { pathList, pathMap, nameMap } = createRouteMap(routes)
 
+  /**
+   * 将路由记录添加到matcher实例的路由映射中
+   * @param {*} routes 
+   */
   function addRoutes (routes) {
     createRouteMap(routes, pathList, pathMap, nameMap)
   }
@@ -48,6 +72,12 @@ export function createMatcher (
     return pathList.map(path => pathMap[path])
   }
 
+  /**
+   * 根据内部的路由映射匹配location对应的路由对象route
+   * @param {*} raw 
+   * @param {*} currentRoute 
+   * @param {*} redirectedFrom 
+   */
   function match (
     raw: RawLocation,
     currentRoute?: Route,
@@ -175,6 +205,7 @@ export function createMatcher (
     return _createRoute(null, location)
   }
 
+  // 将外部传入的路由记录转换成统一的route对象
   function _createRoute (
     record: ?RouteRecord,
     location: Location,
@@ -189,6 +220,7 @@ export function createMatcher (
     return createRoute(record, location, redirectedFrom, router)
   }
 
+  // 返回的对象
   return {
     match,
     addRoute,

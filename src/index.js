@@ -52,7 +52,7 @@ export default class VueRouter {
     this.resolveHooks = []
     this.afterHooks = []
     this.matcher = createMatcher(options.routes || [], this)
-
+    // 获取传入的路由模式，默认使用hash
     let mode = options.mode || 'hash'
     this.fallback =
       mode === 'history' && !supportsPushState && options.fallback !== false
@@ -63,7 +63,7 @@ export default class VueRouter {
       mode = 'abstract'
     }
     this.mode = mode
-
+    // 根据不同的mode来生成不同的history实例
     switch (mode) {
       case 'history':
         this.history = new HTML5History(this, options.base)
@@ -96,33 +96,41 @@ export default class VueRouter {
         `not installed. Make sure to call \`Vue.use(VueRouter)\` ` +
           `before creating root instance.`
       )
-
+    // 首先将传入的app实例，存入this.apps中
     this.apps.push(app)
 
     // set up app destroyed handler
     // https://github.com/vuejs/vue-router/issues/2639
+    // 使用$once监听组件destroyed生命周期钩子，保证对应组件销毁时组件app实例从router.apps上移除。
     app.$once('hook:destroyed', () => {
       // clean out app from this.apps array once destroyed
+      // 从this.apps从查询是否存在传入app
       const index = this.apps.indexOf(app)
+      // 如果index > -1，说明已经存在，那么从this.apps中移除
       if (index > -1) this.apps.splice(index, 1)
       // ensure we still have a main app or null if no apps
       // we do not release the router so it can be reused
+      // 判断当前this.app与传入的app是不是同一个，如果是，则从this.apps中取出第一个app
       if (this.app === app) this.app = this.apps[0] || null
-
+      // 判断当前this.app是否存在，不存在则销毁。
       if (!this.app) this.history.teardown()
     })
 
     // main app previously initialized
     // return as we don't need to set up new history listener
+    // 判断this.app是否存在，有则返回
     if (this.app) {
       return
     }
 
+    // 将存入的app实例赋给this.app
     this.app = app
 
+    // 获取history实例
     const history = this.history
 
     if (history instanceof HTML5History || history instanceof HashHistory) {
+      // 定义handleInitialScroll函数
       const handleInitialScroll = routeOrError => {
         const from = history.current
         const expectScroll = this.options.scrollBehavior
@@ -132,10 +140,14 @@ export default class VueRouter {
           handleScroll(this, routeOrError, from, false)
         }
       }
+
+      // 定义setupListeners函数
       const setupListeners = routeOrError => {
         history.setupListeners()
         handleInitialScroll(routeOrError)
       }
+      
+      // 使用 history.transitionTo 分路由模式触发路由变化
       history.transitionTo(
         history.getCurrentLocation(),
         setupListeners,
@@ -143,6 +155,7 @@ export default class VueRouter {
       )
     }
 
+    // 使用 history.listen 监听路由变化来更新根组件实例 app._route 是当前跳转的路由
     history.listen(route => {
       this.apps.forEach(app => {
         app._route = route
