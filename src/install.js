@@ -11,7 +11,7 @@ export let _Vue
 export function install (Vue) {
   // 判断是否已经加载过VueRouter，有则返回
   if (install.installed && _Vue === Vue) return
-  // 设置标识为true
+  // 设置标识installed为true，防止重复执行install
   install.installed = true
   // 将传入的Vue对象存入当前局部变量
   _Vue = Vue

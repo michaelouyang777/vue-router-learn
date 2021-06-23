@@ -118,7 +118,7 @@ export default class VueRouter {
 
     // main app previously initialized
     // return as we don't need to set up new history listener
-    // 判断this.app是否存在，有则返回
+    // 判断this.app是否存在，有则返回。保证VueRouter只初始化一次，如果初始化了就终止后续逻辑
     if (this.app) {
       return
     }
@@ -129,6 +129,7 @@ export default class VueRouter {
     // 获取history实例
     const history = this.history
 
+    // 针对不同路由模式做不同的处理
     if (history instanceof HTML5History || history instanceof HashHistory) {
       // 定义handleInitialScroll函数
       const handleInitialScroll = routeOrError => {

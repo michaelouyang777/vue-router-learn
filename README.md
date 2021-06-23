@@ -56,7 +56,7 @@ src
 https://blog.csdn.net/u013938465/article/details/79421239
 
 
-### vue-router的安装
+### 1. vue-router的安装与使用
 
 #### 1-1. vue-router的使用
 
@@ -80,6 +80,7 @@ const routes = [
 
 // 2. 创建 router 实例，并传 `routes` 配置
 const router = new VueRouter({
+  mode: 'history',
   routes 
 })
 
@@ -103,9 +104,9 @@ const app = new Vue({
 ```
 
 
-#### 1-2 vue-router的使用分析
+### 2. vue-router的安装与使用详细分析
 
-##### 第一步：注册插件
+#### 第一步：注册插件
 
 使用`Vue.use(VueRouter)`方法将插件注入到Vue中。
 use方法会检测注入插件内的install方法，如果有，则执行install方法。
@@ -165,6 +166,11 @@ export default class VueRouter {
 
 // 将引入install函数挂载到VueRouter的静态类方法中
 VueRouter.install = install
+
+// 如果是浏览器环境，自动执行 Vue.use(VueRouter) 挂载路由
+if (inBrowser && window.Vue) {
+  window.Vue.use(VueRouter)
+}
 ```
 
 其实VueRouter的install方法就挂载在类方法上。
@@ -236,6 +242,8 @@ export function install (Vue) {
 }
 ```
 
+> 备注：
+> install方法中，第一件主要的事情，就是调用Vue.mixin()方法，该方法会在new Vue()初始化根实例的生命周期的时候触发里面的内容。也就是说Vue.mixin()里面的代码逻辑是被挂载在vm根实例下，等待时机执行。
 
 
 
@@ -251,13 +259,7 @@ export function install (Vue) {
 
 
 
-
-
-
-
-
-
-##### 第二步：初始化router实例
+#### 第二步：初始化router实例
 
 初始化router实例，并传入 `routes` 路由配置
 ```js
@@ -309,7 +311,7 @@ TODO
 
 
 
-##### 第三步：生成vue实例
+#### 第三步：生成vue实例
 
 ```js
 const app = new Vue({
@@ -363,9 +365,9 @@ Vue.mixin({
 })
 ```
 
-首先会执行`beforeCreate`扣子函数，验证vue是否有router对象，没有则初始化。有则根组件的`_routerRoot`。然后调用`registerInstance`注册实例。
+首先会执行`beforeCreate`扣子函数，验证vue是否有router对象，没有则初始化。有则寻找父组件的`_routerRoot`。
 
-在没有router对象时，会调用`this.$options.router`拿到传入到`new Vue({ router })`中的router实例，通过这个实例可以调用VueRouter的实例方法init，即`this._router.init(this)`，下面来看看init实例方法中实现：
+在没有router对象时，会调用`this.$options.router`拿到传入到`new Vue({ router })`中的router实例，通过这个实例可以调用VueRouter的实例方法init方法，即`this._router.init(this)`，来初始化router。下面来看看init实例方法中实现：
 
 ```js
 // index.js
@@ -452,6 +454,23 @@ init方法中主要做了如下几件事：
 2. **保证路由初仅始化一次**  由于init是被全局注册的mixin调用，此处通过`if(this.app)`判断`this.app`是否存在，保证路由初始化仅仅在根组件 <App /> 上初始化一次，`this.app`最后保存的根据组件实例。
 3. **触发路由变化**  使用 `history.transitionTo` 分路由模式触发路由变化。
 4. **开始路由监听**  使用 `history.listen` 监听路由变化，来更新根组件实例 app._route 是当前跳转的路由。
+
+
+执行完init方法初始化router之后，最后会调用`registerInstance`方法，注册实例。
+
+```js
+  /**
+   * 定义注册实例函数
+   * @param {*} vm vue实例
+   * @param {*} callVal 回调
+   */
+  const registerInstance = (vm, callVal) => {
+    let i = vm.$options._parentVnode
+    if (isDef(i) && isDef(i = i.data) && isDef(i = i.registerRouteInstance)) {
+      i(vm, callVal)
+    }
+  }
+```
 
 至此，路由的初始化工作就完成了。
 
