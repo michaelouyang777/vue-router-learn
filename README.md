@@ -259,13 +259,70 @@ export function install (Vue) {
 
 
 
+
 #### 第二步：初始化router实例
 
-初始化router实例，并传入 `routes` 路由配置
 ```js
 const router = new VueRouter({
+  mode: 'history',
   routes 
 })
+```
+
+使用`new VueRouter()`初始化router实例，并传入一个对象，对象内包裹mode、routes（路由配置）这2个参数。
+
+那么VueRouter类的构造函数又是怎么实现的？
+
+```js
+// index.js
+
+export default class VueRouter {
+  // ...
+
+  constructor (options: RouterOptions = {}) {
+    this.app = null
+    this.apps = []
+    this.options = options
+    this.beforeHooks = []
+    this.resolveHooks = []
+    this.afterHooks = []
+    
+    // 创建 matcher 匹配函数，createMatcher函数返回一个对象 {match, addRoutes} 【重要】
+    this.matcher = createMatcher(options.routes || [], this)
+
+    // 获取传入的路由模式，默认使用hash
+    let mode = options.mode || 'hash'
+
+    // h5的history有兼容性 对history做降级处理
+    this.fallback = mode === 'history' && !supportsPushState && options.fallback !== false
+    if (this.fallback) {
+      mode = 'hash'
+    }
+    if (!inBrowser) {
+      mode = 'abstract'
+    }
+    this.mode = mode
+
+    // 根据不同的mode来生成不同的history实例
+    switch (mode) {
+      case 'history':
+        this.history = new HTML5History(this, options.base)
+        break
+      case 'hash':
+        this.history = new HashHistory(this, options.base, this.fallback)
+        break
+      case 'abstract':
+        this.history = new AbstractHistory(this, options.base)
+        break
+      default:
+        if (process.env.NODE_ENV !== 'production') {
+          assert(false, `invalid mode: ${mode}`)
+        }
+    }
+  }
+
+  // ...
+}
 ```
 
 生成实例过程中，主要做了以下两件事：
@@ -276,22 +333,6 @@ const router = new VueRouter({
 > History类由HTML5History、HashHistory、AbstractHistory三类继承
 > history/base.js实现了基本history的操作
 > history/hash.js，history/html5.js和history/abstract.js继承了base，只是根据不同的模式封装了一些基本操作
-
-
-
-
-那么VueRouter类的构造函数又是怎么实现的？
-
-<!-- 
-TODO
-
-编写VueRouter构造函数当中做了些什么
-
-
- -->
-
-
-
 
 
 

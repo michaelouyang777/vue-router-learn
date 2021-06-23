@@ -51,11 +51,15 @@ export default class VueRouter {
     this.beforeHooks = []
     this.resolveHooks = []
     this.afterHooks = []
+    
+    // 创建 matcher 匹配函数，createMatcher函数返回一个对象 {match, addRoutes} 【重要】
     this.matcher = createMatcher(options.routes || [], this)
+
     // 获取传入的路由模式，默认使用hash
     let mode = options.mode || 'hash'
-    this.fallback =
-      mode === 'history' && !supportsPushState && options.fallback !== false
+
+    // h5的history有兼容性 对history做降级处理
+    this.fallback = mode === 'history' && !supportsPushState && options.fallback !== false
     if (this.fallback) {
       mode = 'hash'
     }
@@ -63,6 +67,7 @@ export default class VueRouter {
       mode = 'abstract'
     }
     this.mode = mode
+
     // 根据不同的mode来生成不同的history实例
     switch (mode) {
       case 'history':
