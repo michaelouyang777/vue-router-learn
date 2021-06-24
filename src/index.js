@@ -51,8 +51,8 @@ export default class VueRouter {
     this.beforeHooks = []
     this.resolveHooks = []
     this.afterHooks = []
-    
-    // 创建 matcher 匹配函数，createMatcher函数返回一个对象 {match, addRoutes} 【重要】
+
+    // 创建 matcher 匹配函数，createMatcher函数返回一个对象 { match, addRoute, getRoutes, addRoutes } 【重要】
     this.matcher = createMatcher(options.routes || [], this)
 
     // 获取传入的路由模式，默认使用hash

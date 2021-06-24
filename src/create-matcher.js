@@ -33,8 +33,9 @@ export type Matcher = {
 /**
  * 路由匹配器
  * 进行路由地址到路由对象的转换、路由记录的映射、路由参数处理等操作
- * @param {*} routes 
- * @param {*} router 
+ * @param {Array<RouteConfig>} routes 路由配置
+ * @param {VueRouter} router 路由实例
+ * @return {Matcher}
  */
 export function createMatcher (
   routes: Array<RouteConfig>,
@@ -222,10 +223,10 @@ export function createMatcher (
 
   // 返回的对象
   return {
-    match,
+    match, // 当前路由的match 
     addRoute,
     getRoutes,
-    addRoutes
+    addRoutes // 更新路由配置
   }
 }
 

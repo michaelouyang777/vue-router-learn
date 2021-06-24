@@ -287,7 +287,7 @@ export default class VueRouter {
     this.resolveHooks = []
     this.afterHooks = []
     
-    // 创建 matcher 匹配函数，createMatcher函数返回一个对象 {match, addRoutes} 【重要】
+    // 路由匹配器。createMatcher函数返回一个对象 {match, addRoutes} 【重要】
     this.matcher = createMatcher(options.routes || [], this)
 
     // 获取传入的路由模式，默认使用hash
@@ -325,14 +325,125 @@ export default class VueRouter {
 }
 ```
 
-生成实例过程中，主要做了以下两件事：
-1、根据配置数组(传入的routes)生成路由配置记录表。
-2、根据不同模式生成监控路由变化的History对象
+生成实例过程中，主要做了以下两件事：<br/>
+1、根据传入的routes（在options内）生成路由配置记录表<br/>
+2、根据不同的mode模式生成监控路由变化的History对象
 
-> 注：
-> History类由HTML5History、HashHistory、AbstractHistory三类继承
-> history/base.js实现了基本history的操作
-> history/hash.js，history/html5.js和history/abstract.js继承了base，只是根据不同的模式封装了一些基本操作
+
+下面来看看第一件事情：根据传入的routes（在options内）生成路由配置记录表
+
+
+##### 基础概念——路由匹配器matcher
+路由匹配器macther是由create-matcher生成一个对象，其将传入VueRouter类的路由记录进行内部转换，对外提供根据location匹配路由方法——match、注册路由方法——addRoutes。
+* match方法：根据内部的路由映射匹配location对应的路由对象route
+* addRoutes方法：将路由记录添加到matcher实例的路由映射中
+
+**生成matcher**
+```js
+// src/index.js
+
+constructor (options: RouterOptions = {}) {
+  ...
+  // 路由匹配器
+  this.matcher = createMatcher(options.routes || [], this)
+  ...
+}
+```
+
+下面来看看路由匹配器`createMatcher`函数做了哪些事情：
+
+```js
+/**
+ * 路由匹配器
+ * 进行路由地址到路由对象的转换、路由记录的映射、路由参数处理等操作
+ * @param {Array<RouteConfig>} routes 路由配置
+ * @param {VueRouter} router 路由实例
+ * @return {Matcher} 
+ */
+export function createMatcher (routes: Array<RouteConfig>, router: VueRouter): Matcher {
+  const { pathList, pathMap, nameMap } = createRouteMap(routes)
+
+  /**
+   * 将路由记录添加到matcher实例的路由映射中
+   */
+  function addRoutes (routes) {
+    createRouteMap(routes, pathList, pathMap, nameMap)
+  }
+
+  function addRoute (parentOrRoute, route) {
+    // ...
+  }
+
+  function getRoutes () {
+    return pathList.map(path => pathMap[path])
+  }
+
+  /**
+   * 根据内部的路由映射匹配location对应的路由对象route
+   */
+  function match (raw: RawLocation, currentRoute?: Route, redirectedFrom?: Location): Route {
+    // ...
+
+    return _createRoute(null, location)
+  }
+
+  function redirect (record: RouteRecord, location: Location): Route {
+    // ...
+
+  }
+
+  function alias (record: RouteRecord, location: Location, matchAs: string): Route {
+    // ... 
+
+    return _createRoute(null, location)
+  }
+
+  /**
+   * 将外部传入的路由记录转换成统一的route对象
+   */
+  function _createRoute (record: ?RouteRecord, location: Location, redirectedFrom?: Location): Route {
+    // ... 
+
+    return createRoute(record, location, redirectedFrom, router)
+  }
+
+  // 返回的对象
+  return {
+    match, // 当前路由的match 
+    addRoute,
+    getRoutes,
+    addRoutes // 更新路由配置
+  }
+}
+```
+
+`createMatcher`函数接收2个参数：
+routes 是 用户定义的路由配置；
+router 是 new VueRouter 返回的实例。
+返回了一个对象 { match, addRoute, getRoutes, addRoutes }
+也就是说 `this.matcher` 是一个对象，它对外暴露了 match、addRoute、getRoutes、addRoutes方法。
+
+`createMatcher`函数内第一句是`createRouteMap`函数，先来了解下
+```js
+// src/create-matcher.js
+const { pathList, pathMap, nameMap } = createRouteMap(routes)
+```
+pathList：路由路径数组，存储所有的path
+pathMap：路由路径与路由记录的映射表，表示一个path到RouteRecord的映射关系
+nameMap：路由名称与路由记录的映射表，表示name到RouteRecord的映射关系
+
+
+
+
+
+
+
+
+
+> 注：<br/>
+> History类由HTML5History、HashHistory、AbstractHistory三类继承<br/>
+> history/base.js实现了基本history的操作<br/>
+> history/hash.js，history/html5.js，history/abstract.js继承了base，只是根据不同的模式封装了一些基本操作
 
 
 
