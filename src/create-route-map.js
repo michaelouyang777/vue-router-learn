@@ -1,5 +1,5 @@
 /* @flow */
-
+// 引入第三方库：路径转为正则
 import Regexp from 'path-to-regexp'
 import { cleanPath } from './util/path'
 import { assert, warn } from './util/warn'
@@ -7,12 +7,8 @@ import { assert, warn } from './util/warn'
 /**
  * 创建路由映射表
  * 
- * @param {Array<RouteConfig>} routes
- * @returns {{
-  *   pathMap: Dictionary<RouteRecord>,
-  *   nameMap: Dictionary<RouteRecord>
-  * }}
-  */
+ * @param {Array<RouteConfig>} routes 路由配置
+ */
 export function createRouteMap (
   routes: Array<RouteConfig>,
   oldPathList?: Array<string>,
@@ -24,10 +20,12 @@ export function createRouteMap (
   pathMap: Dictionary<RouteRecord>,
   nameMap: Dictionary<RouteRecord>
 } {
-  // the path list is used to control path matching priority
+  // 路由路径列表，存储所有的path，用于控制路径匹配优先级
   const pathList: Array<string> = oldPathList || []
+  // 路由路径与路由记录的映射表，表示一个path到RouteRecord的映射关系
   // $flow-disable-line
   const pathMap: Dictionary<RouteRecord> = oldPathMap || Object.create(null)
+  // 路由名称与路由记录的映射表，表示name到RouteRecord的映射关系
   // $flow-disable-line
   const nameMap: Dictionary<RouteRecord> = oldNameMap || Object.create(null)
 
@@ -37,6 +35,7 @@ export function createRouteMap (
   })
 
   // ensure wildcard routes are always at the end
+  // 确保通配符路由始终位于末尾
   for (let i = 0, l = pathList.length; i < l; i++) {
     if (pathList[i] === '*') {
       pathList.push(pathList.splice(i, 1)[0])
@@ -58,16 +57,16 @@ export function createRouteMap (
   }
 
   return {
-    pathList,
-    pathMap,
-    nameMap
+    pathList, // 路径列表
+    pathMap,  // 路径映射表
+    nameMap   // 名称映射表
   }
 }
 
 /**
  * 添加路由记录
  * 
- * @param {Array<string>} pathList
+ * @param {Array<string>} pathList 路径列表
  * @param {Dictionary<RouteRecord>} pathMap 路径映射表
  * @param {Dictionary<RouteRecord>} nameMap 名称映射表
  * @param {RouteConfig} route 路由项
@@ -84,6 +83,7 @@ function addRouteRecord (
 ) {
   // 解构路径和名称，若路径不存在，则抛出异常
   const { path, name } = route
+
   if (process.env.NODE_ENV !== 'production') {
     assert(path != null, `"path" is required in a route configuration.`)
     assert(
@@ -102,9 +102,8 @@ function addRouteRecord (
     )
   }
 
-  const pathToRegexpOptions: PathToRegexpOptions =
-    route.pathToRegexpOptions || {}
-  // 规范化之后的路径
+  const pathToRegexpOptions: PathToRegexpOptions = route.pathToRegexpOptions || {}
+  // 规范化路由路径
   const normalizedPath = normalizePath(path, parent, pathToRegexpOptions.strict)
 
   if (typeof route.caseSensitive === 'boolean') {
@@ -113,10 +112,10 @@ function addRouteRecord (
 
   // 定义路由记录构建选项
   const record: RouteRecord = {
-    path: normalizedPath,
-    regex: compileRouteRegex(normalizedPath, pathToRegexpOptions),
+    path: normalizedPath, // 规范化之后的路径
+    regex: compileRouteRegex(normalizedPath, pathToRegexpOptions), // 路由正则
     components: route.components || { default: route.component }, // 路由组件
-    alias: route.alias
+    alias: route.alias // 路由别名
       ? typeof route.alias === 'string'
         ? [route.alias]
         : route.alias
@@ -171,17 +170,21 @@ function addRouteRecord (
     })
   }
 
+  // 如果路径映射表里不存在路径
   if (!pathMap[record.path]) {
+    // 给路径列表添加路径
     pathList.push(record.path)
+    // 给路径映射表添加路径记录
     pathMap[record.path] = record
   }
 
   // 是否存在别名配置 string | Array<string>
   if (route.alias !== undefined) {
-    // 处理数组情况
+    // 对别名进行格式整理，统一转为数组（便于后续遍历操作处理）
     const aliases = Array.isArray(route.alias) ? route.alias : [route.alias]
-    // 递归处理别名配置项
+    // 递归别名配置项
     for (let i = 0; i < aliases.length; ++i) {
+      // 拿到单个别名项
       const alias = aliases[i]
       if (process.env.NODE_ENV !== 'production' && alias === path) {
         warn(
@@ -191,11 +194,12 @@ function addRouteRecord (
         // skip in dev to make it work
         continue
       }
-
+      // 别名路由项对象
       const aliasRoute = {
         path: alias,
         children: route.children
       }
+      // 递归处理
       addRouteRecord(
         pathList,
         pathMap,
@@ -207,7 +211,9 @@ function addRouteRecord (
     }
   }
 
+  // 如果路由存在name属性
   if (name) {
+    // 判断名称映射表中是否存在name属性，没有的话则添加一条记录
     if (!nameMap[name]) {
       nameMap[name] = record
     } else if (process.env.NODE_ENV !== 'production' && !matchAs) {
@@ -220,10 +226,17 @@ function addRouteRecord (
   }
 }
 
+/**
+ * 解析路径为正则
+ * 
+ * @param {*} path 
+ * @param {*} pathToRegexpOptions 
+ */
 function compileRouteRegex (
   path: string,
   pathToRegexpOptions: PathToRegexpOptions
 ): RouteRegExp {
+  // 根据路径返回一个正则
   const regex = Regexp(path, [], pathToRegexpOptions)
   if (process.env.NODE_ENV !== 'production') {
     const keys: any = Object.create(null)

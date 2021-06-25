@@ -329,9 +329,7 @@ export default class VueRouter {
 1、根据传入的routes（在options内）生成路由配置记录表<br/>
 2、根据不同的mode模式生成监控路由变化的History对象
 
-
 下面来看看第一件事情：根据传入的routes（在options内）生成路由配置记录表
-
 
 ##### 基础概念——路由匹配器matcher
 路由匹配器macther是由create-matcher生成一个对象，其将传入VueRouter类的路由记录进行内部转换，对外提供根据location匹配路由方法——match、注册路由方法——addRoutes。
@@ -350,15 +348,17 @@ constructor (options: RouterOptions = {}) {
 }
 ```
 
-下面来看看路由匹配器`createMatcher`函数做了哪些事情：
+下面来看看路由匹配器`createMatcher`函数：
+
+**`createMatcher`函数接收2个参数：**
+- routes 是 用户定义的路由配置；
+- router 是 `new VueRouter()` 返回的实例。
+- 返回了一个对象 { match, addRoute, getRoutes, addRoutes }
 
 ```js
 /**
  * 路由匹配器
  * 进行路由地址到路由对象的转换、路由记录的映射、路由参数处理等操作
- * @param {Array<RouteConfig>} routes 路由配置
- * @param {VueRouter} router 路由实例
- * @return {Matcher} 
  */
 export function createMatcher (routes: Array<RouteConfig>, router: VueRouter): Matcher {
   const { pathList, pathMap, nameMap } = createRouteMap(routes)
@@ -417,20 +417,64 @@ export function createMatcher (routes: Array<RouteConfig>, router: VueRouter): M
 }
 ```
 
-`createMatcher`函数接收2个参数：
-routes 是 用户定义的路由配置；
-router 是 new VueRouter 返回的实例。
-返回了一个对象 { match, addRoute, getRoutes, addRoutes }
-也就是说 `this.matcher` 是一个对象，它对外暴露了 match、addRoute、getRoutes、addRoutes方法。
+下面具体分析一下`createMatcher`函数内的`createRouteMap`函数：
 
-`createMatcher`函数内第一句是`createRouteMap`函数，先来了解下
+**`createRouteMap`函数说明：**
+1. 第一步：声明3个的变量：
+   - pathList：路由路径列表，存储所有的path，用于控制路径匹配优先级
+   - pathMap： 路由路径与路由记录的映射表，表示一个path到RouteRecord的映射关系
+   - nameMap： 路由名称与路由记录的映射表，表示name到RouteRecord的映射关系
+2. 第二步：遍历routes对每一项进行处理。
+3. 第三步：针对通配符路由的处理，确保通配符路由始终位于末尾。
+4. 最后一步：返回一个对象，对象内包含pathList，pathMap，nameMap。
+
 ```js
-// src/create-matcher.js
-const { pathList, pathMap, nameMap } = createRouteMap(routes)
+// src/create-route-map.js
+
+/**
+ * 创建路由映射表
+ */
+export function createRouteMap (
+  routes: Array<RouteConfig>,
+  oldPathList?: Array<string>,
+  oldPathMap?: Dictionary<RouteRecord>,
+  oldNameMap?: Dictionary<RouteRecord>,
+  parentRoute?: RouteRecord
+): {
+  pathList: Array<string>,
+  pathMap: Dictionary<RouteRecord>,
+  nameMap: Dictionary<RouteRecord>
+} {
+  // 路由路径列表，存储所有的path，用于控制路径匹配优先级
+  const pathList: Array<string> = oldPathList || []
+  // 路由路径与路由记录的映射表，表示一个path到RouteRecord的映射关系
+  const pathMap: Dictionary<RouteRecord> = oldPathMap || Object.create(null)
+  // 路由名称与路由记录的映射表，表示name到RouteRecord的映射关系
+  const nameMap: Dictionary<RouteRecord> = oldNameMap || Object.create(null)
+
+  // 对路由表内部每一项进行处理
+  routes.forEach(route => {
+    addRouteRecord(pathList, pathMap, nameMap, route, parentRoute)
+  })
+
+  // 针对通配符路由的处理，确保通配符路由始终位于末尾
+  for (let i = 0, l = pathList.length; i < l; i++) {
+    if (pathList[i] === '*') {
+      pathList.push(pathList.splice(i, 1)[0])
+      l--
+      i--
+    }
+  }
+
+  return {
+    pathList, 
+    pathMap,  
+    nameMap   
+  }
+}
 ```
-pathList：路由路径数组，存储所有的path
-pathMap：路由路径与路由记录的映射表，表示一个path到RouteRecord的映射关系
-nameMap：路由名称与路由记录的映射表，表示name到RouteRecord的映射关系
+
+
 
 
 
