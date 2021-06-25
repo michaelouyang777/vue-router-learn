@@ -29,7 +29,7 @@ export function createRouteMap (
   // $flow-disable-line
   const nameMap: Dictionary<RouteRecord> = oldNameMap || Object.create(null)
 
-  // 对路由表内部每一项进行处理
+  // 遍历routes，对每一项进行处理
   routes.forEach(route => {
     addRouteRecord(pathList, pathMap, nameMap, route, parentRoute)
   })
@@ -102,6 +102,7 @@ function addRouteRecord (
     )
   }
 
+  // 路径转正则的配置
   const pathToRegexpOptions: PathToRegexpOptions = route.pathToRegexpOptions || {}
   // 规范化路由路径
   const normalizedPath = normalizePath(path, parent, pathToRegexpOptions.strict)
@@ -178,7 +179,7 @@ function addRouteRecord (
     pathMap[record.path] = record
   }
 
-  // 是否存在别名配置 string | Array<string>
+  // 是否存在别名置项 string | Array<string>
   if (route.alias !== undefined) {
     // 对别名进行格式整理，统一转为数组（便于后续遍历操作处理）
     const aliases = Array.isArray(route.alias) ? route.alias : [route.alias]
