@@ -76,7 +76,7 @@ export function createMatcher (
   /**
    * 根据内部的路由映射匹配location对应的路由对象route
    * @param {*} raw 
-   * @param {*} currentRoute 
+   * @param {*} currentRoute 当前路由配置
    * @param {*} redirectedFrom 
    */
   function match (
@@ -84,44 +84,60 @@ export function createMatcher (
     currentRoute?: Route,
     redirectedFrom?: Location
   ): Route {
+    // 规范化目标路由的链接
     const location = normalizeLocation(raw, currentRoute, false, router)
     const { name } = location
 
+    // 判断location.name是否存在
     if (name) {
+      // 若存在名称，从名称映射表中取对应记录
       const record = nameMap[name]
       if (process.env.NODE_ENV !== 'production') {
         warn(record, `Route with name '${name}' does not exist`)
       }
+      
+      // 如果没有record，则直接返回，并调用_createRoute，传入null，生成路由
       if (!record) return _createRoute(null, location)
+
+      // 获取record.regex.keys列表，过滤符合条件的，再映射一个key.name的列表
       const paramNames = record.regex.keys
         .filter(key => !key.optional)
         .map(key => key.name)
 
+      // 如果location.params不是一个object类型，就指定一个空对象
       if (typeof location.params !== 'object') {
         location.params = {}
       }
 
+      // 判断currentRoue是否存在，并且currentRoute.params是否object类型
       if (currentRoute && typeof currentRoute.params === 'object') {
+        // 遍历currentRoute.params
         for (const key in currentRoute.params) {
+          // 如果key不存在于location.params中，但key存在于paramNames中
           if (!(key in location.params) && paramNames.indexOf(key) > -1) {
+            // currentRoute.params中的key，存到location.params中
             location.params[key] = currentRoute.params[key]
           }
         }
       }
-
+      // 处理路径
       location.path = fillParams(record.path, location.params, `named route "${name}"`)
+      // 生成路由
       return _createRoute(record, location, redirectedFrom)
-    } else if (location.path) {
+    } 
+    // 或者判断location.path是否存在
+    else if (location.path) {
       location.params = {}
       for (let i = 0; i < pathList.length; i++) {
         const path = pathList[i]
         const record = pathMap[path]
         if (matchRoute(record.regex, location.path, location.params)) {
+          // 生成路由
           return _createRoute(record, location, redirectedFrom)
         }
       }
     }
-    // no match
+    // 没有匹配，则直接返回，并调用_createRoute，传入null，生成路由
     return _createRoute(null, location)
   }
 

@@ -54,6 +54,7 @@ src
 
 参考文章：
 https://blog.csdn.net/u013938465/article/details/79421239
+https://juejin.cn/post/6844903877263753223#heading-9
 
 
 ### 1. vue-router的安装与使用
@@ -338,7 +339,7 @@ export default class VueRouter {
 
 **生成matcher**
 ```js
-// src/index.js
+// index.js
 
 constructor (options: RouterOptions = {}) {
   ...
@@ -354,6 +355,8 @@ constructor (options: RouterOptions = {}) {
 - 返回了一个对象 { match, addRoute, getRoutes, addRoutes }
 
 ```js
+// create-matcher.js
+
 /**
  * 路由匹配器
  * 进行路由地址到路由对象的转换、路由记录的映射、路由参数处理等操作
@@ -417,6 +420,10 @@ export function createMatcher (routes: Array<RouteConfig>, router: VueRouter): M
 
 下面具体分析一下`createMatcher`函数内的`createRouteMap`函数：
 
+```js
+const { pathList, pathMap, nameMap } = createRouteMap(routes)
+```
+
 **`createRouteMap`函数分析：**
 1. 第一步：声明3个的变量：
    - pathList：路由路径列表，存储所有的path，用于控制路径匹配优先级
@@ -427,7 +434,7 @@ export function createMatcher (routes: Array<RouteConfig>, router: VueRouter): M
 4. 最后一步：返回一个对象，对象内包含pathList，pathMap，nameMap。
 
 ```js
-// src/create-route-map.js
+// create-route-map.js
 
 /**
  * 创建路由映射表
@@ -481,7 +488,7 @@ export function createRouteMap (
 5. 判断路由是否存在name属性，有的话再判断名称映射表中是否存在name属性，没有的话则添加一条记录
 
 ```js
-// src/create-route-map.js
+// create-route-map.js
 
 // 引入第三方库：路径转为正则
 import Regexp from 'path-to-regexp'
@@ -669,6 +676,147 @@ function normalizePath (
 }
 ```
 
+pathMap存储的数据结构如下：
+```js
+pathMap：{
+  '': {
+    beforeEnter: undefined,
+    components: {
+      default: { template: "<div>home</div>" },
+      __proto__: Object
+    },
+    instances: {},
+    matchAs: undefined,
+    meta: {},
+    name: undefined,
+    parent: undefined,
+    path: "",
+    redirect: undefined,
+    __proto__: Object,
+  },
+  '/bar': {
+    beforeEnter: undefined,
+    components: {
+      default: {template: "<div>bar</div>"},
+      __proto__: Object
+    },
+    instances: {},
+    matchAs: undefined,
+    meta: {},
+    name: undefined,
+    parent: undefined,
+    path: "/bar",
+    redirect: undefined,
+    __proto__: Object
+  },
+  '/bar/child': {
+    beforeEnter: undefined,
+    components: {
+      default: {template: "<div>Child</div>"},
+      __proto__: Object
+    },
+    instances: {},
+    matchAs: undefined,
+    meta: {},
+    name: undefined,
+    parent: {path: "/bar", ... },
+    path: "/bar/child",
+    redirect: undefined,
+    __proto__: Object
+  },
+  '/foo': {
+    beforeEnter: undefined,
+    components: {
+      default: {template: "<div>foo</div>"},
+      __proto__: Object
+    },
+    instances: {},
+    matchAs: undefined,
+    meta: {},
+    name: undefined,
+    parent: undefined,
+    path: "/foo",
+    redirect: undefined,
+    __proto__: Object
+  }
+}
+```
+
+分析完`createMatcher`函数内的`const { pathList, pathMap, nameMap } = createRouteMap(routes)`的内部实现之后，下面继续分析`createMatcher`函数。
+
+`createMatcher`函数返回了一个对象 { match, addRoute, getRoutes, addRoutes }
+
+下面看看 `match` 函数的实现
+
+```js
+  /**
+   * 根据内部的路由映射匹配location对应的路由对象route
+   * @param {*} raw 
+   * @param {*} currentRoute 当前路由配置
+   * @param {*} redirectedFrom 
+   */
+  function match (
+    raw: RawLocation,
+    currentRoute?: Route,
+    redirectedFrom?: Location
+  ): Route {
+    // 规范化目标路由的链接
+    const location = normalizeLocation(raw, currentRoute, false, router)
+    const { name } = location
+
+    // 判断location.name是否存在
+    if (name) {
+      // 若存在名称，从名称映射表中取对应记录
+      const record = nameMap[name]
+      if (process.env.NODE_ENV !== 'production') {
+        warn(record, `Route with name '${name}' does not exist`)
+      }
+      
+      // 如果没有record，则直接返回，并调用_createRoute，传入null，生成路由
+      if (!record) return _createRoute(null, location)
+
+      // 获取record.regex.keys列表，过滤符合条件的，再映射一个key.name的列表
+      const paramNames = record.regex.keys
+        .filter(key => !key.optional)
+        .map(key => key.name)
+
+      // 如果location.params不是一个object类型，就指定一个空对象
+      if (typeof location.params !== 'object') {
+        location.params = {}
+      }
+
+      // 判断currentRoue是否存在，并且currentRoute.params是否object类型
+      if (currentRoute && typeof currentRoute.params === 'object') {
+        // 遍历currentRoute.params
+        for (const key in currentRoute.params) {
+          // 如果key不存在于location.params中，但key存在于paramNames中
+          if (!(key in location.params) && paramNames.indexOf(key) > -1) {
+            // currentRoute.params中的key，存到location.params中
+            location.params[key] = currentRoute.params[key]
+          }
+        }
+      }
+      // 处理路径
+      location.path = fillParams(record.path, location.params, `named route "${name}"`)
+      // 生成路由
+      return _createRoute(record, location, redirectedFrom)
+    } 
+    // 或者判断location.path是否存在
+    else if (location.path) {
+      location.params = {}
+      for (let i = 0; i < pathList.length; i++) {
+        const path = pathList[i]
+        const record = pathMap[path]
+        if (matchRoute(record.regex, location.path, location.params)) {
+          // 生成路由
+          return _createRoute(record, location, redirectedFrom)
+        }
+      }
+    }
+    // 没有匹配，则直接返回，并调用_createRoute，传入null，生成路由
+    return _createRoute(null, location)
+  }
+```
 
 
 
