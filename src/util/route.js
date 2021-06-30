@@ -5,6 +5,14 @@ import { stringifyQuery } from './query'
 
 const trailingSlashRE = /\/?$/
 
+/**
+ * 创建路由对象
+ * 
+ * @param {*} record 
+ * @param {*} location 
+ * @param {*} redirectedFrom 
+ * @param {*} router 
+ */
 export function createRoute (
   record: ?RouteRecord,
   location: Location,
@@ -18,6 +26,7 @@ export function createRoute (
     query = clone(query)
   } catch (e) {}
 
+  // 路由自身属性组装
   const route: Route = {
     name: location.name || (record && record.name),
     meta: (record && record.meta) || {},

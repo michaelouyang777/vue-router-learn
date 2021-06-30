@@ -233,18 +233,26 @@ export function createMatcher (
     return _createRoute(null, location)
   }
 
-  // 将外部传入的路由记录转换成统一的route对象
+  /**
+   * 将外部传入的路由记录转换成统一的route对象
+   * @param {*} record 
+   * @param {*} location 
+   * @param {*} redirectedFrom 
+   */
   function _createRoute (
     record: ?RouteRecord,
     location: Location,
     redirectedFrom?: Location
   ): Route {
+    // 重定向
     if (record && record.redirect) {
       return redirect(record, redirectedFrom || location)
     }
+    // 别名处理
     if (record && record.matchAs) {
       return alias(record, location, record.matchAs)
     }
+    // 创建路由对象
     return createRoute(record, location, redirectedFrom, router)
   }
 

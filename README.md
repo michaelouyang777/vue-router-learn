@@ -914,6 +914,46 @@ pathMap：{
 > 
 > 以上3个函数的相关的说明，请查看源码 `src/util/query.js`
 
+最终 `match` 函数会返回一个通过 `_createRoute`函数生成路由对象，数据结构如下：
+```
+route = {
+  fullPath: '/',
+  hash: '',
+  matched: [
+    {
+      beforeEnter: undefined,
+      components: {
+        default: {
+          template: '<div>home</div>'
+        }
+      },
+      instances: {},
+      matchAs: undefined,
+      meta: {},
+      name: undefined,
+      parent: undefined,
+      path: '',
+      redirect: undefined
+    }
+  ],
+  meta: {},
+  name: undefined,
+  params: {},
+  path: '/',
+  query: {},
+  __proto__: Object
+};
+```
+
+`_createRoute` 函数里面做了三件事情：
+1. 判断如果有record.redirect属性，则执行重定向的逻辑。
+2. 判断如果有record.matchAs属性，则执行别名处理的逻辑。
+3. 不论是执行重定向的逻辑还是别名处理的逻辑，最后统一返回 `createRoute` 函数创建路由对象。
+
+
+
+
+
 
 
 
