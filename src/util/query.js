@@ -25,6 +25,14 @@ export function decode (str: string) {
   return str
 }
 
+/**
+ * 查询参数
+ *
+ * @param {?string} query
+ * @param {Dictionary<string>} [extraQuery={}]
+ * @param {Function} [_parseQuery]
+ * @returns {Dictionary<string>} 
+ */
 export function resolveQuery (
   query: ?string,
   extraQuery: Dictionary<string> = {},
@@ -49,18 +57,32 @@ export function resolveQuery (
 
 const castQueryParamValue = value => (value == null || typeof value === 'object' ? value : String(value))
 
+/**
+ * 解析查询参数
+ *
+ * @param {string} query
+ * @returns {Dictionary<string>}
+ */
 function parseQuery (query: string): Dictionary<string> {
   const res = {}
 
+  // 匹配 ？、#、& 开头的字符串 如：'?id=1'.match(/^(\?|#|&)/) => ["?", "?", index: 0, input: "?id=1", groups: undefined]
+  // '?id=1&name=cllemon'.replace(/^(\?|#|&)/, '') => id=1&name=cllemon
   query = query.trim().replace(/^(\?|#|&)/, '')
 
   if (!query) {
     return res
   }
 
+  // 如上例： => ["id=1", "name=cllemon"]
   query.split('&').forEach(param => {
+    // 匹配 ”+“
+    // 如上例："id=1" => ["id", "1"]
     const parts = param.replace(/\+/g, ' ').split('=')
+    // 如上例：["id", "1"] => 'id'
+    // 解码由 decode 等于 decodeURIComponent() 方法用于 encodeURIComponent 方法或者其它类似方法编码的部分统一资源标识符（URI）。
     const key = decode(parts.shift())
+    // 如上例：["1"]
     const val = parts.length > 0 ? decode(parts.join('=')) : null
 
     if (res[key] === undefined) {

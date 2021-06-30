@@ -8,6 +8,14 @@ const regexpCompileCache: {
   [key: string]: Function
 } = Object.create(null)
 
+/**
+ * 填充参数
+ *
+ * @param {string} path
+ * @param {Object} [params]
+ * @param {string} routeMsg
+ * @returns {string}
+ */
 export function fillParams (
   path: string,
   params: ?Object,
@@ -15,6 +23,10 @@ export function fillParams (
 ): string {
   params = params || {}
   try {
+    // 第三方库 path-to-regexp: 将路径字符串（例如`/user/:name`）转换为正则表达式
+    // compile : 用于将字符串转换为有效路径。
+    // 如： const toPath = Regexp.compile('/user/:id')
+    //     toPath({ id: 123 }) //=> "/user/123"
     const filler =
       regexpCompileCache[path] ||
       (regexpCompileCache[path] = Regexp.compile(path))

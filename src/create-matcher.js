@@ -141,6 +141,11 @@ export function createMatcher (
     return _createRoute(null, location)
   }
 
+  /**
+   * 重定向
+   * @param {*} record 
+   * @param {*} location 
+   */
   function redirect (
     record: RouteRecord,
     location: Location
@@ -203,6 +208,12 @@ export function createMatcher (
     }
   }
 
+  /**
+   * 别名
+   * @param {*} record 
+   * @param {*} location 
+   * @param {*} matchAs 
+   */
   function alias (
     record: RouteRecord,
     location: Location,

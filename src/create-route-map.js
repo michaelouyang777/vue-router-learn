@@ -4,11 +4,15 @@ import Regexp from 'path-to-regexp'
 import { cleanPath } from './util/path'
 import { assert, warn } from './util/warn'
 
-/**
- * 创建路由映射表
- * 
- * @param {Array<RouteConfig>} routes 路由配置
- */
+ /**
+  * 创建路由映射表
+  * 
+  * @param {Array<RouteConfig>} routes 路由配置
+  * @param {Array<string>} [oldPathList] 旧的路径列表
+  * @param {Dictionary<RouteRecord>} [oldPathMap] 旧的路径映射表
+  * @param {Dictionary<RouteRecord>} [oldNameMap] 旧的名称映射表
+  * @param {RouteRecord} [parentRoute] 父路由的RouteRecord
+  */
 export function createRouteMap (
   routes: Array<RouteConfig>,
   oldPathList?: Array<string>,
