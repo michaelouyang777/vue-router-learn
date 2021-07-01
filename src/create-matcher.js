@@ -69,6 +69,9 @@ export function createMatcher (
     }
   }
 
+  /**
+   * 获取routes
+   */
   function getRoutes () {
     return pathList.map(path => pathMap[path])
   }

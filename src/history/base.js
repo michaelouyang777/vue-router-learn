@@ -21,6 +21,9 @@ import {
   NavigationFailureType
 } from '../util/errors'
 
+/**
+ * 基类
+ */
 export class History {
   router: Router
   base: string
@@ -35,6 +38,7 @@ export class History {
   cleanupListeners: Function
 
   // implemented by sub-classes
+  // 以下这些方法由子类去实现
   +go: (n: number) => void
   +push: (loc: RawLocation, onComplete?: Function, onAbort?: Function) => void
   +replace: (
@@ -47,10 +51,14 @@ export class History {
   +setupListeners: Function
 
   constructor (router: Router, base: ?string) {
+    // VueRouter 实例
     this.router = router
+    // 应用的根路径
     this.base = normalizeBase(base)
     // start with a route object that stands for "nowhere"
+    // 从一个表示 “nowhere” 的 route 对象开始
     this.current = START
+    // 等待状态标志
     this.pending = null
     this.ready = false
     this.readyCbs = []
@@ -59,10 +67,16 @@ export class History {
     this.listeners = []
   }
 
+  /**
+   * 注册回调
+   */
   listen (cb: Function) {
     this.cb = cb
   }
-
+  
+  /**
+   * 准备函数
+   */
   onReady (cb: Function, errorCb: ?Function) {
     if (this.ready) {
       cb()
@@ -74,10 +88,19 @@ export class History {
     }
   }
 
+  /**
+   * 错误函数
+   */
   onError (errorCb: Function) {
     this.errorCbs.push(errorCb)
   }
 
+  /**
+   * 核心跳转方法
+   * @param {RawLocation} location 目标路径
+   * @param {Function} [onComplete] 成功的回调函数
+   * @param {Function} [onAbort] 失败的回调函数
+   */
   transitionTo (
     location: RawLocation,
     onComplete?: Function,
@@ -86,6 +109,9 @@ export class History {
     let route
     // catch redirect option https://github.com/vuejs/vue-router/issues/3201
     try {
+      // 获取路由匹配信息
+      // location：目标路由
+      // this.current：当前页面路由
       route = this.router.match(location, this.current)
     } catch (e) {
       this.errorCbs.forEach(cb => {
@@ -94,13 +120,23 @@ export class History {
       // Exception should still be thrown
       throw e
     }
+    
+    // 把当前路由缓存起来
     const prev = this.current
+    // 调用最终跳转方法，并传入路由对象信息，和回调
+    // 回调：更新路由，执行传入回调, 更新 URL
     this.confirmTransition(
+      // 匹配的路由对象
       route,
+      // 成功的回调
       () => {
+        // 更新this.current
         this.updateRoute(route)
+        // onComplete 跳转完成触发
         onComplete && onComplete(route)
+        // 抽象方法
         this.ensureURL()
+        // 触发跳转后的路由钩子
         this.router.afterHooks.forEach(hook => {
           hook && hook(route, prev)
         })
@@ -113,6 +149,7 @@ export class History {
           })
         }
       },
+      // 失败的回调
       err => {
         if (onAbort) {
           onAbort(err)
@@ -133,6 +170,9 @@ export class History {
     )
   }
 
+  /**
+   * 确认过渡
+   */
   confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
     const current = this.current
     this.pending = route
@@ -237,6 +277,9 @@ export class History {
     })
   }
 
+  /**
+   * 路由更新
+   */
   updateRoute (route: Route) {
     this.current = route
     this.cb && this.cb(route)
@@ -261,10 +304,15 @@ export class History {
   }
 }
 
+/**
+ * 规范化应用的根路径
+ * @param {*} base 
+ */
 function normalizeBase (base: ?string): string {
   if (!base) {
     if (inBrowser) {
       // respect <base> tag
+      // HTML <base> 元素 指定用于一个文档中包含的所有相对 URL 的根 URL。一份中只能有一个 <base> 元素
       const baseEl = document.querySelector('base')
       base = (baseEl && baseEl.getAttribute('href')) || '/'
       // strip full URL origin
@@ -274,10 +322,12 @@ function normalizeBase (base: ?string): string {
     }
   }
   // make sure there's the starting slash
+  // 确保有开始斜杠
   if (base.charAt(0) !== '/') {
     base = '/' + base
   }
   // remove trailing slash
+  // 去除末尾斜杠
   return base.replace(/\/$/, '')
 }
 

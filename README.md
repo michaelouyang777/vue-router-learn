@@ -256,11 +256,6 @@ export function install (Vue) {
 
 
 
-
-
-
-
-
 #### 第二步：初始化router实例
 
 ```js
@@ -332,7 +327,7 @@ export default class VueRouter {
 
 下面来看看第一件事情：根据传入的routes（在options内）生成路由配置记录表
 
-##### 基础概念——路由匹配器matcher
+##### 基础概念 —— 路由匹配器matcher
 路由匹配器macther是由create-matcher生成一个对象，其将传入VueRouter类的路由记录进行内部转换，对外提供根据location匹配路由方法——match、注册路由方法——addRoutes。
 * match方法：根据内部的路由映射匹配location对应的路由对象route
 * addRoutes方法：将路由记录添加到matcher实例的路由映射中
@@ -952,23 +947,211 @@ route = {
 
 
 
+下面来说第二件事情：根据不同的mode模式生成监控路由变化的History对象
+##### 基础概念 —— History类
 
+History 有 HTML5History、HashHistory、AbstractHistory 三类，同时它们继承了统一个父类 History类，这是history的基类。
 
+继承关系图如下：
+```
+History
+├── HTML5History
+├── HashHistory
+├── AbstractHistory
+```
 
+首先先来看看base基类 History ：
 
+```js
+export class History {
+  router: Router
+  base: string
+  current: Route
+  pending: ?Route
+  cb: (r: Route) => void
+  ready: boolean
+  readyCbs: Array<Function>
+  readyErrorCbs: Array<Function>
+  errorCbs: Array<Function>
+  listeners: Array<Function>
+  cleanupListeners: Function
 
+  // implemented by sub-classes
+  // 以下这些方法由子类去实现
+  +go: (n: number) => void
+  +push: (loc: RawLocation, onComplete?: Function, onAbort?: Function) => void
+  +replace: (
+    loc: RawLocation,
+    onComplete?: Function,
+    onAbort?: Function
+  ) => void
+  +ensureURL: (push?: boolean) => void
+  +getCurrentLocation: () => string
+  +setupListeners: Function
 
+  constructor (router: Router, base: ?string) {
+    // VueRouter 实例
+    this.router = router
+    // 应用的根路径
+    this.base = normalizeBase(base)
+    // start with a route object that stands for "nowhere"
+    // 从一个表示 “nowhere” 的 route 对象开始
+    this.current = START
+    // 等待状态标志
+    this.pending = null
+    this.ready = false
+    this.readyCbs = []
+    this.readyErrorCbs = []
+    this.errorCbs = []
+    this.listeners = []
+  }
 
+  /**
+   * 注册回调
+   */
+  listen (cb: Function) {
+    // ...
+  }
 
+  /**
+   * 准备函数
+   */
+  onReady (cb: Function, errorCb: ?Function) {
+    // ...
+  }
 
+  /**
+   * 错误函数
+   */
+  onError (errorCb: Function) {
+    // ...
+  }
 
-> 注：<br/>
-> History类由HTML5History、HashHistory、AbstractHistory三类继承<br/>
-> history/base.js实现了基本history的操作<br/>
-> history/hash.js，history/html5.js，history/abstract.js继承了base，只是根据不同的模式封装了一些基本操作
+  /**
+   * 核心跳转方法
+   */
+  transitionTo (location: RawLocation, onComplete?: Function, onAbort?: Function) {
+    // ...
+  }
 
+  /**
+   * 确认过渡
+   */
+  confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
+    // ...
+  }
 
+  /**
+   * 路由更新
+   */
+  updateRoute (route: Route) {
+    // ...
+  }
 
+  setupListeners () {
+    // ...
+  }
+
+  teardown () {
+    // ...
+  }
+}
+```
+
+下面重点分析一下两个方法（`transitionTo` 与 `confirmTransition`）
+
+###### transitionTo
+`transitionTo` 函数有三个参数：
+- location   ：目标路径；
+- onComplete ：成功的回调函数；
+- onAbort    ：失败的回调函数；
+
+`transitionTo` 函数做了以下几件事情：
+1. 通过 VueRouter 实例的 matcher 方法返回匹配到 route 对象。
+2. 调用 `confirmTransition` 方法(传入参数为 匹配的路由对象，成功的回调函数，失败的回调函数)。
+   - 成功的回调函数：<br/>
+       <1> 更新 history.current 属性的值为匹配后的 router；<br/>
+       <2> 调用 onComplete 函数；<br/>
+       <3> 调用全局的 afterEach 钩子。<br/>
+   - 失败的回调函数：<br/>
+       <1> 触发失败的回调 onAbort
+
+```js
+  /**
+   * 核心跳转方法
+   * @param {RawLocation} location 目标路径
+   * @param {Function} [onComplete] 成功的回调函数
+   * @param {Function} [onAbort] 失败的回调函数
+   */
+  transitionTo (
+    location: RawLocation,
+    onComplete?: Function,
+    onAbort?: Function
+  ) {
+    let route
+    // catch redirect option https://github.com/vuejs/vue-router/issues/3201
+    try {
+      // 获取路由匹配信息
+      // location：目标路由
+      // this.current：当前页面路由
+      route = this.router.match(location, this.current)
+    } catch (e) {
+      this.errorCbs.forEach(cb => {
+        cb(e)
+      })
+      // Exception should still be thrown
+      throw e
+    }
+    
+    // 把当前路由缓存起来
+    const prev = this.current
+    // 调用最终跳转方法，并传入路由对象信息，和回调
+    // 回调：更新路由，执行传入回调, 更新 URL
+    this.confirmTransition(
+      // 匹配的路由对象
+      route,
+      // 成功的回调
+      () => {
+        // 更新this.current
+        this.updateRoute(route)
+        // onComplete 跳转完成触发
+        onComplete && onComplete(route)
+        // 抽象方法
+        this.ensureURL()
+        // 触发跳转后的路由钩子
+        this.router.afterHooks.forEach(hook => {
+          hook && hook(route, prev)
+        })
+
+        // fire ready cbs once
+        if (!this.ready) {
+          this.ready = true
+          this.readyCbs.forEach(cb => {
+            cb(route)
+          })
+        }
+      },
+      // 失败的回调
+      err => {
+        if (onAbort) {
+          onAbort(err)
+        }
+        if (err && !this.ready) {
+          // Initial redirection should not mark the history as ready yet
+          // because it's triggered by the redirection instead
+          // https://github.com/vuejs/vue-router/issues/3225
+          // https://github.com/vuejs/vue-router/issues/3331
+          if (!isNavigationFailure(err, NavigationFailureType.redirected) || prev !== START) {
+            this.ready = true
+            this.readyErrorCbs.forEach(cb => {
+              cb(err)
+            })
+          }
+        }
+      }
+    )
+  }
+```
 
 
 
