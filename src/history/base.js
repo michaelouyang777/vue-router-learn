@@ -217,6 +217,7 @@ export class History {
       route.matched
     )
 
+    // queue存下所有路由钩子函数
     const queue: Array<?NavigationGuard> = [].concat(
       // in-component leave guards
       // 组件内部beforeRouteLeave
@@ -237,15 +238,19 @@ export class History {
 
     /**
      * 迭代器
-     * @param {*} hook 
-     * @param {*} next
+     * @param {*} hook 定义全局/组件内部的路由钩子函数
+     * @param {*} next 为renQueue内部的回调函数 ()=>{step(index+1)}，必须被执行
      */
     const iterator = (hook: NavigationGuard, next) => {
       if (this.pending !== route) {
         return abort(createNavigationCancelledError(current, route))
       }
       try {
-        // hook为路由守卫等钩子函数
+        /**
+         * hook为路由守卫等钩子函数
+         * hook统一传入三个参数（to, from, next）
+         * 文档中的next参数是指(to: any) => {...}，与上面的next不同
+         */
         hook(route, current, (to: any) => {
           if (to === false) {
             // next(false) -> abort navigation, ensure current URL
@@ -260,7 +265,10 @@ export class History {
               (typeof to.path === 'string' || typeof to.name === 'string'))
           ) {
             // next('/') or next({ path: '/' }) -> redirect
+            // hook内部调用next时候，可以传入路径相关内容
+            // 这时候就直接会转到改路径，类似于 -> redirect
             abort(createNavigationRedirectedError(current, route))
+            // 如果有replace属性就调用replace方法，否则调用push方法
             if (typeof to === 'object' && to.replace) {
               this.replace(to)
             } else {
@@ -378,13 +386,16 @@ function resolveQueue (
   }
 }
 
+// 返回指定的数组内的路由钩子函数
 function extractGuards (
   records: Array<RouteRecord>,
   name: string,
   bind: Function,
   reverse?: boolean
 ): Array<?Function> {
+  // records 就是一个数组RouterRecord类型元素组成的数组
   const guards = flatMapComponents(records, (def, instance, match, key) => {
+    // 获取组件内对应的属性，这里就是组件内的路由钩子函数
     const guard = extractGuard(def, name)
     if (guard) {
       return Array.isArray(guard)
@@ -392,6 +403,7 @@ function extractGuards (
         : bind(guard, instance, match, key)
     }
   })
+  // 是否反转数组
   return flatten(reverse ? guards.reverse() : guards)
 }
 
@@ -417,29 +429,46 @@ function extractUpdateHooks (updated: Array<RouteRecord>): Array<?Function> {
 function bindGuard (guard: NavigationGuard, instance: ?_Vue): ?NavigationGuard {
   if (instance) {
     return function boundRouteGuard () {
+      // 内置钩子的context设置为所在的vue实例
       return guard.apply(instance, arguments)
     }
   }
 }
 
+/**
+ * 
+ * @param {*} activated 激活的组件
+ */
 function extractEnterGuards (
   activated: Array<RouteRecord>
 ): Array<?Function> {
   return extractGuards(
     activated,
     'beforeRouteEnter',
+    // 此回调函数会处理提取的原始钩子函数
     (guard, _, match, key) => {
       return bindEnterGuard(guard, match, key)
     }
   )
 }
 
+/**
+ * 获取到vue的实例对象
+ * @param {*} guard 为用户自定义的路由钩子函数
+ * @param {*} match 
+ * @param {*} key 
+ */
 function bindEnterGuard (
   guard: NavigationGuard,
   match: RouteRecord,
   key: string
 ): NavigationGuard {
+  // 这里相当于做了一层wrapped
+  // guard是用户自定义的路由钩子，针对路由钩子的第三个参数next可以使用next(vm=>{...})
   return function routeEnterGuard (to, from, next) {
+    // 在runQueue异步执行的时候，会执行routeEnterGuard再调用用户自定义的
+    // 但是这里的用户在next中传入的cb被保留到了cbs数组中
+    // 等到视图渲染之后在调用
     return guard(to, from, cb => {
       if (typeof cb === 'function') {
         if (!match.enteredCbs[key]) {

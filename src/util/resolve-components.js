@@ -70,6 +70,11 @@ export function resolveAsyncComponents (matched: Array<RouteRecord>): Function {
   }
 }
 
+/**
+ * 
+ * @param {*} matched matched是多个record类型元素组成的数组
+ * @param {*} fn 
+ */
 export function flatMapComponents (
   matched: Array<RouteRecord>,
   fn: Function

@@ -29,28 +29,44 @@ export function setupScroll () {
   }
 }
 
+/**
+ * 处理页面切换时，滚动位置
+ * @param {Route} router 
+ * @param {Route} to 将要去的路由对象
+ * @param {Route} from 当前路由对象
+ * @param {boolean} isPop 当且仅当 popstate 导航 (通过浏览器的 前进/后退 按钮触发) 时才可用
+ */
 export function handleScroll (
   router: Router,
   to: Route,
   from: Route,
   isPop: boolean
 ) {
+  // 若当前 Vue 组件实例不存在，直接return
   if (!router.app) {
     return
   }
 
+  // 取路由 滚动行为 配置参数。 若不存在直接 return
+  // 使用前端路由，当切换到新路由时，想要页面滚到顶部，或者是保持原先的滚动位置，就像重新加载页面那样
+  // 只在html5历史模式下可用; 默认没有滚动行为; 返回false以防止滚动.
+  // { x: number, y: number }
+  // { selector: string, offset? : { x: number, y: number }}
   const behavior = router.options.scrollBehavior
   if (!behavior) {
     return
   }
 
+  // 断言 其必须是函数，否则抛出异常
   if (process.env.NODE_ENV !== 'production') {
     assert(typeof behavior === 'function', `scrollBehavior must be a function`)
   }
 
-  // wait until re-render finishes before scrolling
+  // 等到重新渲染完成后再滚动
   router.app.$nextTick(() => {
+    // 获取滚动位置
     const position = getScrollPosition()
+    // 获取回调返回的滚动位置的对象信息
     const shouldScroll = behavior.call(
       router,
       to,
@@ -58,6 +74,7 @@ export function handleScroll (
       isPop ? position : null
     )
 
+    // 若不存在直接 return
     if (!shouldScroll) {
       return
     }
