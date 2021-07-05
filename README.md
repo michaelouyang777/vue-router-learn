@@ -1060,7 +1060,8 @@ export class History {
 
 下面重点分析一下两个方法（`transitionTo` 与 `confirmTransition`）
 
-###### transitionTo
+**`transitionTo` 函数**
+
 `transitionTo` 函数有三个参数：
 - location   ：目标路径；
 - onComplete ：成功的回调函数；
@@ -1152,6 +1153,149 @@ export class History {
     )
   }
 ```
+
+
+** `confirmTransition` 函数**
+
+`confirmTransition` 是一个很重要的函数方法，文档内**完整的导航解析流程**就在此函数内定义。
+
+在 `transitionTo` 函数执行时调用 `confirmTransition` 函数，往 `confirmTransition` 函数传入一个成功的回调，该回调会调用全局的 **afterEach** 钩子。
+
+```js
+  /**
+   * 确认过渡
+   * @param {Route} route 解析后的跳转路由
+   * @param {Function} onComplete 成功的回调
+   * @param {Function} [onAbort] 失败的回调
+   */
+  confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
+    // 当前的路由
+    const current = this.current
+    this.pending = route
+    const abort = err => {
+      // changed after adding errors with
+      // https://github.com/vuejs/vue-router/pull/3047 before that change,
+      // redirect and aborted navigation would produce an err == null
+      if (!isNavigationFailure(err) && isError(err)) {
+        if (this.errorCbs.length) {
+          this.errorCbs.forEach(cb => {
+            cb(err)
+          })
+        } else {
+          warn(false, 'uncaught error during route navigation:')
+          console.error(err)
+        }
+      }
+      onAbort && onAbort(err)
+    }
+    // 获取要跳转的record
+    const lastRouteIndex = route.matched.length - 1
+    // 获取当前的record
+    const lastCurrentIndex = current.matched.length - 1
+    // 如果跳转前后的路由相同就调用失败的回调
+    if (
+      isSameRoute(route, current) &&
+      // in the case the route map has been dynamically appended to
+      lastRouteIndex === lastCurrentIndex &&
+      route.matched[lastRouteIndex] === current.matched[lastCurrentIndex]
+    ) {
+      this.ensureURL()
+      return abort(createNavigationDuplicatedError(current, route))
+    }
+
+    // 解析钩子函数队列，包括导航的路由守卫，并异步调用
+    const { updated, deactivated, activated } = resolveQueue(
+      this.current.matched,
+      route.matched
+    )
+
+    const queue: Array<?NavigationGuard> = [].concat(
+      // in-component leave guards
+      // 组件内部beforeRouteLeave
+      extractLeaveGuards(deactivated),
+      // global before hooks
+      // 全部前置守卫 beforeEach
+      this.router.beforeHooks,
+      // in-component update hooks
+      // vue组件内部 beforeRouteUpdate
+      extractUpdateHooks(updated),
+      // in-config enter guards
+      // 路由配置里面的beforeEnter
+      activated.map(m => m.beforeEnter),
+      // async components
+      // 解析异步组件
+      resolveAsyncComponents(activated)
+    )
+
+    /**
+     * 迭代器
+     * @param {*} hook 
+     * @param {*} next
+     */
+    const iterator = (hook: NavigationGuard, next) => {
+      if (this.pending !== route) {
+        return abort(createNavigationCancelledError(current, route))
+      }
+      try {
+        // hook为路由守卫等钩子函数
+        hook(route, current, (to: any) => {
+          if (to === false) {
+            // next(false) -> abort navigation, ensure current URL
+            this.ensureURL(true)
+            abort(createNavigationAbortedError(current, route))
+          } else if (isError(to)) {
+            this.ensureURL(true)
+            abort(to)
+          } else if (
+            typeof to === 'string' ||
+            (typeof to === 'object' &&
+              (typeof to.path === 'string' || typeof to.name === 'string'))
+          ) {
+            // next('/') or next({ path: '/' }) -> redirect
+            abort(createNavigationRedirectedError(current, route))
+            if (typeof to === 'object' && to.replace) {
+              this.replace(to)
+            } else {
+              this.push(to)
+            }
+          } else {
+            // confirm transition and pass on the value
+            // next为调用下一个queue数组的函数元素
+            next(to)
+          }
+        })
+      } catch (e) {
+        abort(e)
+      }
+    }
+
+    // 按照queue队列一个一个执行异步回调
+    runQueue(queue, iterator, () => {
+      // wait until async components are resolved before
+      // 在解析异步组件之前
+      // extracting in-component enter guards
+      // 组件内部的beforeRouteEnter
+      const enterGuards = extractEnterGuards(activated)
+      // 全部的beforeResolve
+      const queue = enterGuards.concat(this.router.resolveHooks)
+      runQueue(queue, iterator, () => {
+        if (this.pending !== route) {
+          return abort(createNavigationCancelledError(current, route))
+        }
+        this.pending = null
+        // 导航被确认
+        onComplete(route)
+        if (this.router.app) {
+          this.router.app.$nextTick(() => {
+            handleRouteEntered(route)
+          })
+        }
+      })
+    })
+  }
+```
+
+
 
 
 
