@@ -35,6 +35,7 @@ export function install (Vue) {
   }
 
   // 调用Vue的全局api mixin，混入
+  // TODO Q：这里使用了大量的this，分别是代表了什么？
   Vue.mixin({
     // 在beforeCreate扣子函数进行路由注册
     beforeCreate () {

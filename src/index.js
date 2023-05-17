@@ -313,7 +313,7 @@ VueRouter.isNavigationFailure = isNavigationFailure
 VueRouter.NavigationFailureType = NavigationFailureType
 VueRouter.START_LOCATION = START
 
-// 如果是浏览器环境，自动执行 Vue.use(VueRouter) 挂载路由
+// 【兼容写法】如果是浏览器环境，自动执行 Vue.use(VueRouter) 挂载路由
 if (inBrowser && window.Vue) {
   window.Vue.use(VueRouter)
 }

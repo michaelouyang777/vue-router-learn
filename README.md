@@ -1,12 +1,11 @@
 # vue-router 源码学习
 
-
-
 ## vue-router 研究版本
 vue-router v3.5.1
 
-
-
+<br/>
+<br/>
+<br/>
 
 ## 目录结构
 
@@ -16,39 +15,49 @@ src
 ├── components                      // 组件<router-view> and <router-link> 的实现
 │   ├── link.js
 │   └── view.js
-├── create-matcher.js               // 生成匹配表
-├── create-route-map.js
 ├── history                         // 路由方式的封装
 │   ├── abstract.js
 │   ├── base.js
 │   ├── errors.js
 │   ├── hash.js
 │   └── html5.js
+├── util                            // 各种功能类和功能函数
+│   ├── async.js
+│   ├── dom.js
+│   ├── location.js
+│   ├── misc.js
+│   ├── params.js
+│   ├── path.js
+│   ├── push-state.js
+│   ├── query.js
+│   ├── resolve-components.js
+│   ├── route.js
+│   ├── scroll.js
+│   ├── state-key.js
+│   └── warn.js
+├── create-matcher.js               // 生成匹配表
+├── create-route-map.js
 ├── index.js                        // 入口文件
-├── install.js                      // 单独文件放置安装插件的方法
-└── util                            // 各种功能类和功能函数
-    ├── async.js
-    ├── dom.js
-    ├── location.js
-    ├── misc.js
-    ├── params.js
-    ├── path.js
-    ├── push-state.js
-    ├── query.js
-    ├── resolve-components.js
-    ├── route.js
-    ├── scroll.js
-    ├── state-key.js
-    └── warn.js
+└── install.js                      // 单独文件放置安装插件的方法
 ~~~
 
+整体结构说明：
+`components` 下是两个组件 `<router-link>` 和 `<router-view>`
+`history` 是路由方式的封装，提供三种方式
+`util` 下主要是各种功能类和功能函数
+`create-matcher.js` 和 `create-router-map.js` 是生成匹配表
+`index.js` 是VueRouter类，也整个插件的入口
+`install.js` 提供安装的方法
 
+<br/>
+<br/>
+<br/>
 
+-------------------------------------------------------------------------------------
 
---------------------------------------
-
-
-
+<br/>
+<br/>
+<br/>
 
 ## 源码分析
 
@@ -57,35 +66,40 @@ https://blog.csdn.net/u013938465/article/details/79421239
 https://juejin.cn/post/6844903877263753223#heading-9
 
 
-### 1. vue-router的安装与使用
+### 前言
 
-#### 1-1. vue-router的使用
+在分析源码之前，先了解一下 vue-router 的使用方式
 
-在分析源码之前，先整体展示下vue-router使用方式
+<br/>
+<br/>
+<br/>
 
+### 1. vue-router的使用
+
+使用方式如下：（当前只演示vue项目的写法）
 ```js
 import Vue from 'vue'
 import VueRouter from 'vue-router'
-// 1. 注册插件（如果是在浏览器环境运行的，可以不写该方法）
+// 第一步：注册插件（如果是在浏览器环境运行的，可以不写该方法）
 Vue.use(VueRouter)
 
 // 定义组件（可以从其他文件 import 进来）
 const User = { template: '<div>用户</div>' }
 const Role = { template: '<div>角色</div>' }
 
-// 定义路由【Array】（每个路由应该映射一个组件）
+// 定义路由配置表【Array】（每个路由应该映射一个组件）
 const routes = [
   { path: '/user', component: User },
   { path: '/home', component: Home }
 ]
 
-// 2. 创建 router 实例，并传 `routes` 配置
+// 第二步：创建 router 实例，并传 `routes` 配置表
 const router = new VueRouter({
   mode: 'history',
   routes 
 })
 
-// 3. 创建和挂载根实例
+// 第三步：创建和挂载根实例
 // 使用 router-link 组件来导航路由出口，路由匹配到的组件将渲染在这里
 const app = new Vue({
   router,
@@ -104,13 +118,22 @@ const app = new Vue({
 }).$mount('#app')
 ```
 
+<br/>
+<br/>
+<br/>
 
-### 2. vue-router的安装与使用详细分析
+### 2. vue-router源码分析
+
+以下分析，根据上面使用示例的步骤进行！！！
 
 #### 第一步：注册插件
 
+~~~ 
 使用`Vue.use(VueRouter)`方法将插件注入到Vue中。
-use方法会检测注入插件内的install方法，如果有，则执行install方法。
+use方法会检测注入插件内的install方法，如果有，则执行install方法。 
+
+PS：这是所有vue插件的通用逻辑
+~~~
 
 > 注意：如果是在浏览器环境，在index.js内会自动调用use方法。如果是基于node环境，需要手动调用。
 ```js
@@ -120,16 +143,24 @@ if (inBrowser && window.Vue) {
 }
 ```
 
-以下是use源码的实现：
+先看看 vue 内的 use 方法源码实现：
 
-`Vue.use()`方法的内部，其实就是调用plugin的install方法。
+`Vue.use()`方法的内部，其实就是调用plugin的`install`方法。
+
 ```js
-// core/use.js
-
+// vue/src/core/global-api/use.js
+/**
+ * 定义全局API Vue.use()
+ * @param {*} Vue 
+ */
 export function initUse (Vue: GlobalAPI) {
-  // use方法接收一个Function或Object
-  // 并把use方法挂载到Vue上，成为类方法
+  /**
+   * use方法定义
+   * 把use方法挂载到Vue上，成为全局类方法
+   * @param {Function | Object} plugin 接收一个Function或Object类型传入的插件
+   */
   Vue.use = function (plugin: Function | Object) {
+    // 如果插件已经存在，就返回当前对象
     const installedPlugins = (this._installedPlugins || (this._installedPlugins = []))
     if (installedPlugins.indexOf(plugin) > -1) {
       return this
@@ -138,20 +169,28 @@ export function initUse (Vue: GlobalAPI) {
     // additional parameters
     const args = toArray(arguments, 1)
     args.unshift(this)
-    // 判断plugin中的install是否函数
+    // 判断plugin是对象传入的，还是函数传入的
+    // 解释：由于Object 和 Function 类型，都可以在其下挂类方法，因此判断plugin是否存在install 和 判断 install 是不是 'function'就可以了
     if (typeof plugin.install === 'function') {
       // 调用的install函数
       plugin.install.apply(plugin, args)
-    } else if (typeof plugin === 'function') {
+    } 
+    // plugin如果是函数传入的
+    else if (typeof plugin === 'function') {
       plugin.apply(null, args)
     }
+
+    // 最后把插件缓存起来
     installedPlugins.push(plugin)
+    
     return this
   }
 }
 ```
 
-`Vue.use(VueRouter)`会自动加载VueRouter中的install方法，那么在vue-router中的install方法，又是如何编写的呢？
+**既然`Vue.use(VueRouter)`会自动加载VueRouter中的`install`方法，那么在vue-router中的`install`方法，又是如何编写的呢？**
+
+下面先看看`index.js`如何引入`install`?
 
 ```js
 // index.js
@@ -168,20 +207,20 @@ export default class VueRouter {
 // 将引入install函数挂载到VueRouter的静态类方法中
 VueRouter.install = install
 
-// 如果是浏览器环境，自动执行 Vue.use(VueRouter) 挂载路由
+// 【兼容写法】如果是浏览器环境，自动执行 Vue.use(VueRouter) 挂载路由
 if (inBrowser && window.Vue) {
   window.Vue.use(VueRouter)
 }
 ```
 
-其实VueRouter的install方法就挂载在类方法上。
+从上面代码可以看到`install`方法，其实是挂载在VueRouter类上，成为了类方法。
 
 
-vue-router中，被执行的install方法解析(对应目录install.js)
+`install`方法中的逻辑，单独抽象成一个`install.js`存放
 
-install方法内主要做了以下三件事：
-1. 通过Vue实例，使用 minxin 混入 beforeCreate 钩子操作（在Vue的生命周期阶段会被调用）
-2. 通过 Vue.prototype 定义 $router、$route 属性（方便所有组件可以获取这两个属性）
+`install`方法内主要做了以下三件事：
+1. 通过Vue实例，使用 `minxin` 混入 `beforeCreate`、`destroyed` 生命周期，在相关节点上进行操作（在Vue的生命周期阶段会被调用）
+2. 通过Vue.prototype 定义 $router、$route 属性（方便所有组件可以获取这两个属性）
 3. 通过Vue全局注册 router-link 和 router-view 两个组件
 
 ```js
@@ -244,17 +283,14 @@ export function install (Vue) {
 ```
 
 > 备注：
-> install方法中，第一件主要的事情，就是调用Vue.mixin()方法，该方法会在new Vue()初始化根实例的生命周期的时候触发里面的内容。也就是说Vue.mixin()里面的代码逻辑是被挂载在vm根实例下，等待时机执行。
+> - install方法中，第一件主要的事情，就是调用Vue.mixin()方法，该方法会在new Vue()初始化根实例的生命周期的时候触发里面的内容。也就是说Vue.mixin()里面的代码逻辑是被挂载在vm根实例下，等待时机执行。
+> - [Object.defineProperty()](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Object/defineProperty)
 
-
-
-
-
-
-
-
-
-
+<br/>
+<br/>
+<br/>
+<br/>
+<br/>
 
 #### 第二步：初始化router实例
 
@@ -265,9 +301,14 @@ const router = new VueRouter({
 })
 ```
 
-使用`new VueRouter()`初始化router实例，并传入一个对象，对象内包裹mode、routes（路由配置）这2个参数。
+使用`new VueRouter()`初始化router实例，并传入一个对象，对象内包裹mode、routes（路由配置）等参数。
+[Router构建选项](https://v3.router.vuejs.org/zh/api/#router-%E6%9E%84%E5%BB%BA%E9%80%89%E9%A1%B9)
 
-那么VueRouter类的构造函数又是怎么实现的？
+**那么VueRouter类的构造函数又是怎么实现的？**
+
+生成实例主要做了以下两件事：<br/>
+> 第一件事：根据传入的routes（在options内）生成路由配置记录表<br/>
+> 第二件事：根据不同的mode模式生成监控路由变化的History对象
 
 ```js
 // index.js
@@ -320,10 +361,6 @@ export default class VueRouter {
   // ...
 }
 ```
-
-生成实例过程中，主要做了以下两件事：<br/>
-1、根据传入的routes（在options内）生成路由配置记录表<br/>
-2、根据不同的mode模式生成监控路由变化的History对象
 
 下面来看看第一件事情：根据传入的routes（在options内）生成路由配置记录表
 
