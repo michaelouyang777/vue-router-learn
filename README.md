@@ -1277,6 +1277,9 @@ export function getLocation (base: string): string {
 
 history路由模式比hash路由的构造函数要简单
 
+小结：
+history路由的实现基本与hash路由一致。差异在于history路由不会做一些容错处理，不会判断当前环境是否支持historyAPI（因为已经在hash路由中做了容错，所以也不会再触发）。默认监听popstate事件，默认使用histroyAPI。
+
 <br/>
 
 ###### AbstractHistory 类
@@ -1301,7 +1304,7 @@ export class AbstractHistory extends History {
 <br/>
 <br/>
 
-###### base基类 —— History 类
+###### History 类 —— base基类
 
 `HTML5History`、`HashHistory`、`AbstractHistory` 这3个类都继承了同一个父类 `History` 类，这是history的基类。
 
@@ -1313,7 +1316,35 @@ History
 └── AbstractHistory
 ```
 
-首先先来看看base基类 History ：
+由于`HTML5History`、`HashHistory`、`AbstractHistory`的构造函数，都调用了父类的构造函数，因为下面看看`History`的构造函数有些什么
+
+```js
+export class History {
+
+  constructor (router: Router, base: ?string) {
+    // VueRouter 实例
+    this.router = router
+    // 应用的根路径
+    this.base = normalizeBase(base)
+    // start with a route object that stands for "nowhere"
+    // 从一个表示 “nowhere” 的 route 对象开始
+    this.current = START
+    // 等待状态标志
+    this.pending = null
+    this.ready = false
+    this.readyCbs = []
+    this.readyErrorCbs = []
+    this.errorCbs = []
+    this.listeners = []
+  }
+}
+```
+
+可以看到，History的构造函数内，只是初始化了一些基本值，并没有初始化的逻辑需要执行。那么`index.js`根据不同的mode来生成不同的history实例 `new HTML5History()`、`new HashHistory()`、`new AbstractHistory()`的初始化逻辑就说到这里了。
+
+<br/>
+
+###### History 类详细分析
 
 ```js
 // src/history/base.js
@@ -1398,14 +1429,6 @@ export class History {
 // 其余的是base.js的私有函数，为该类服务
 // ...
 ```
-
-
-
-
-
-
-
-
 
 下面重点分析一下两个方法（`transitionTo` 与 `confirmTransition`）
 
@@ -1654,9 +1677,6 @@ export class History {
 ```
 
 
-
-###### HistoryRouter
-HistoryRouter的实现基本于HashRouter一致。差异在于HistoryRouter不会做一些容错处理，不会判断当前环境是否支持historyAPI。默认监听popstate事件，默认使用histroyAPI。感兴趣的同学可以看/history/html5.js中关于HistoryRouter的定义。
 
 
 
