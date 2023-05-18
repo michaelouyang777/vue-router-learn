@@ -5,6 +5,7 @@ import { saveScrollPosition } from './scroll'
 import { genStateKey, setStateKey, getStateKey } from './state-key'
 import { extend } from './misc'
 
+// 判断环境是否支持 history.pushState
 export const supportsPushState =
   inBrowser &&
   (function () {
@@ -22,7 +23,8 @@ export const supportsPushState =
     return window.history && typeof window.history.pushState === 'function'
   })()
 
-export function pushState (url?: string, replace?: boolean) {
+export function pushState(url?: string, replace?: boolean) {
+  // 记录当前的x轴和y轴，以发生导航的时间为key，位置信息记录在positionStore中
   saveScrollPosition()
   // try...catch the pushState call to get around Safari
   // DOM Exception 18 where it limits to 100 pushState calls

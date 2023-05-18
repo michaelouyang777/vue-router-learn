@@ -2,7 +2,7 @@
 
 /**
  * 执行队列
- * @param {Array<?NavigationGuard>} queue 队列
+ * @param {Array<?NavigationGuard>} queue 队列，一个一维数组，其元素为全局/组件的路由钩子函数
  * @param {Function} fn 迭代器
  * @param {Function} cb 回调函数
  */

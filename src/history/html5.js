@@ -115,6 +115,11 @@ export class HTML5History extends History {
   }
 }
 
+/**
+ * 获取路径
+ * @param {*} base 
+ * @returns 
+ */
 export function getLocation (base: string): string {
   // 路径
   let path = window.location.pathname

@@ -377,22 +377,28 @@ export default class VueRouter {
 
 下面来看看第一件事情：根据传入的routes（在options内）生成路由配置记录表
 
-###### 基础概念 —— 路由匹配器matcher
-路由匹配器macther是由create-matcher生成一个对象，其将传入VueRouter类的路由记录进行内部转换，对外提供根据location匹配路由方法——match、注册路由方法——addRoutes。
-* match方法：根据内部的路由映射匹配location对应的路由对象route
-* addRoutes方法：将路由记录添加到matcher实例的路由映射中
-
-**生成matcher**
 ```js
 // index.js
 
-constructor (options: RouterOptions = {}) {
-  ...
-  // 路由匹配器
-  this.matcher = createMatcher(options.routes || [], this)
-  ...
+export default class VueRouter {
+  // ...
+
+  constructor (options: RouterOptions = {}) {
+    ...
+    // 【第一件事】：根据传入的routes（在options内）生成路由配置记录表
+    // 路由匹配器。createMatcher函数返回一个对象 {match, addRoutes} 【重要】
+    this.matcher = createMatcher(options.routes || [], this)
+    ...
+  }
+
 }
 ```
+
+###### 基础概念 —— 路由匹配器matcher
+
+路由匹配器macther是由`createMatcher`生成一个对象，其将传入VueRouter类的路由记录进行内部转换，对外提供根据location匹配路由方法——match、注册路由方法——addRoutes。
+- match方法：根据内部的路由映射匹配location对应的路由对象route
+- addRoutes方法：将路由记录添加到matcher实例的路由映射中
 
 **`createMatcher`函数接收2个参数：**
 - routes 是 用户定义的路由配置；
@@ -1001,7 +1007,257 @@ route = {
 
 再来说说第二件事情：根据不同的mode模式生成监控路由变化的History对象
 
-###### base基类 —— History类
+```js
+// index.js
+
+export default class VueRouter {
+  // ...
+
+  constructor (options: RouterOptions = {}) {
+    // ...
+
+    // 【第二件事】：根据不同的mode模式生成监控路由变化的History对象
+    // 获取传入的路由模式，默认使用hash
+    let mode = options.mode || 'hash'
+
+    // h5的history有兼容性 对history做降级处理
+    this.fallback = mode === 'history' && !supportsPushState && options.fallback !== false
+    if (this.fallback) {
+      mode = 'hash'
+    }
+    // 如果不是在浏览器环境内，使用 abstract 模式
+    if (!inBrowser) {
+      mode = 'abstract'
+    }
+    this.mode = mode
+
+    // 根据不同的mode来生成不同的history实例
+    switch (mode) {
+      case 'history':
+        this.history = new HTML5History(this, options.base)
+        break
+      case 'hash':
+        this.history = new HashHistory(this, options.base, this.fallback)
+        break
+      case 'abstract':
+        this.history = new AbstractHistory(this, options.base)
+        break
+      default:
+        if (process.env.NODE_ENV !== 'production') {
+          assert(false, `invalid mode: ${mode}`)
+        }
+    }
+  }
+
+  // ...
+}
+```
+
+可以看到`HTML5History`、`HashHistory`，`AbstractHistory`都是使用了new实例化，那么先看看它们的构造函数执行了什么逻辑
+
+###### HashHistory 类
+
+HashHistory构造函数做了3件事：
+1. `super(router, base)`调用父类的构造函数
+2-1. 如果是回退hash的情况，并且执行`checkFallback`判断当前路径是否有/#/。如果没有将会添加'/#/'，返回
+2-2. 如果不是回退hash的情况，执行`ensureSlash()`(`ensureSlash`里面做了什么，后面再解析)
+
+```js
+// src/history/hash.js
+
+export class HashHistory extends History {
+  constructor (router: Router, base: ?string, fallback: boolean) {
+    super(router, base)
+    // 如果是回退hash的情况，并且判断当前路径是否有/#/。如果没有将会添加'/#/'
+    if (fallback && checkFallback(this.base)) {
+      return
+    }
+    // 保证 hash 值以/开头，如果没有则开头添加/
+    ensureSlash()
+  }
+}
+
+```
+
+第1步，`super(router, base)`调用父类的构造函数，其他路由模式都会执行到，因此先跳过这一步，后面再统一说明。
+
+第2-1步，看看`checkFallback()`里面的逻辑是什么?
+
+判断当前路径是否有`/#/`，如果有则不做操作，没有则添加`/#/`。
+
+```js
+// src/history/hash.js
+
+/**
+ * 检查url是否包含‘/#/...’，没有则替换存在则返回true
+ * @param {*} base base uri 前缀
+ */
+function checkFallback(base) {
+  // 获取路径
+  const location = getLocation(base)
+  // 如果location不是以/#，开头。添加/#，使用window.location.replace替换文档
+  if (!/^\/#/.test(location)) {
+    window.location.replace(cleanPath(base + '/#' + location))
+    return true
+  }
+}
+```
+
+```js
+// src/history/html5.js
+
+export function getLocation (base: string): string {
+  // 路径
+  let path = window.location.pathname
+  // 如果传入的路径存在，并且传入的路径存在于location.pathname中
+  if (base && path.toLowerCase().indexOf(base.toLowerCase()) === 0) {
+    // 截取path后面部分
+    path = path.slice(base.length)
+  }
+  // 返回组装的路径
+  return (path || '/') + window.location.search + window.location.hash
+}
+```
+
+```js
+// src/util/path.js
+
+// 将path中的 //, 替换为 /
+export function cleanPath (path: string): string {
+  return path.replace(/\/\//g, '/')
+}
+```
+
+
+第2-2步，如果不是回退hash的情况，直接执行`ensureSlash()`，下面看看`ensureSlash`里面做了什么？
+
+保证 hash 值以 / 开头，如果没有则开头添加 /
+
+```js
+// src/history/hash.js
+
+// 确保url是以/开头
+function ensureSlash(): boolean {
+  // 判断是否包含#，并获取hash值。如果url没有#，则返回‘’
+  const path = getHash()
+  // 判断path是否以/开头
+  if (path.charAt(0) === '/') {
+    return true
+  }
+  // 如果开头不是‘/’, 则添加/
+  replaceHash('/' + path)
+  return false
+}
+
+// 获取“#”后面的hash
+export function getHash (): string {
+  // We can't use window.location.hash here because it's not
+  // consistent across browsers - Firefox will pre-decode it!
+  let href = window.location.href
+  const index = href.indexOf('#')
+  // empty path
+  if (index < 0) return ''
+
+  href = href.slice(index + 1)
+
+  return href
+}
+
+// getUrl返回了完整了路径，并且会添加#, 确保存在/#/
+function getUrl (path) {
+  const href = window.location.href
+  const i = href.indexOf('#')
+  const base = i >= 0 ? href.slice(0, i) : href
+  return `${base}#${path}`
+}
+
+// 替换hash记录
+function replaceHash(path) {
+  // 如果运行环境支持history的API
+  // 那么使用 history.replaceState 替换路由栈
+  // 如果不支持，使用 window.location.replace 替换
+  if (supportsPushState) {
+    replaceState(getUrl(path))
+  } else {
+    window.location.replace(getUrl(path))
+  }
+}
+```
+
+`replaceState`又做了什么？
+
+重写`history`的`pushState`和`replaceState`函数
+
+```js
+// src/util/push-state.js
+
+import { inBrowser } from './dom'
+import { saveScrollPosition } from './scroll'
+import { genStateKey, setStateKey, getStateKey } from './state-key'
+import { extend } from './misc'
+
+export const supportsPushState =
+  inBrowser &&
+  (function () {
+    const ua = window.navigator.userAgent
+
+    if (
+      (ua.indexOf('Android 2.') !== -1 || ua.indexOf('Android 4.0') !== -1) &&
+      ua.indexOf('Mobile Safari') !== -1 &&
+      ua.indexOf('Chrome') === -1 &&
+      ua.indexOf('Windows Phone') === -1
+    ) {
+      return false
+    }
+
+    return window.history && typeof window.history.pushState === 'function'
+  })()
+
+export function pushState(url?: string, replace?: boolean) {
+  // 记录当前的x轴和y轴，以发生导航的时间为key，位置信息记录在positionStore中
+  saveScrollPosition()
+  // try...catch the pushState call to get around Safari
+  // DOM Exception 18 where it limits to 100 pushState calls
+  const history = window.history
+  try {
+    if (replace) {
+      // preserve existing history state as it could be overriden by the user
+      const stateCopy = extend({}, history.state)
+      stateCopy.key = getStateKey()
+      history.replaceState(stateCopy, '', url)
+    } else {
+      history.pushState({ key: setStateKey(genStateKey()) }, '', url)
+    }
+  } catch (e) {
+    window.location[replace ? 'replace' : 'assign'](url)
+  }
+}
+
+export function replaceState (url?: string) {
+  pushState(url, true)
+}
+```
+
+<br/>
+
+###### HTML5History 类
+
+
+
+
+
+
+
+
+<br/>
+
+###### AbstractHistory 类
+
+
+
+
+
+###### base基类 —— History 类
 
 `HTML5History`、`HashHistory`、`AbstractHistory` 这3个类都继承了同一个父类 `History` 类，这是history的基类。
 
@@ -1098,6 +1354,14 @@ export class History {
 // 其余的是base.js的私有函数，为该类服务
 // ...
 ```
+
+
+
+
+
+
+
+
 
 下面重点分析一下两个方法（`transitionTo` 与 `confirmTransition`）
 
@@ -1200,7 +1464,7 @@ export class History {
 
 **`confirmTransition`函数**
 
-`confirmTransition` 是一个很重要的函数方法，文档内**完整的导航解析流程**就在此函数内定义。
+`confirmTransition` 是一个很重要的函数方法，文档内[完整的导航解析流程](https://router.vuejs.org/zh/guide/advanced/navigation-guards.html#%E7%BB%84%E4%BB%B6%E5%86%85%E7%9A%84%E5%AE%88%E5%8D%AB)就在此函数内定义。
 
 在 `transitionTo` 函数执行时调用 `confirmTransition` 函数，往 `confirmTransition` 函数传入一个成功的回调，该回调会调用全局的 **afterEach** 钩子。
 
@@ -1272,15 +1536,19 @@ export class History {
 
     /**
      * 迭代器
-     * @param {*} hook 
-     * @param {*} next
+     * @param {*} hook 定义全局/组件内部的路由钩子函数
+     * @param {*} next 为renQueue内部的回调函数 ()=>{step(index+1)}，必须被执行
      */
     const iterator = (hook: NavigationGuard, next) => {
       if (this.pending !== route) {
         return abort(createNavigationCancelledError(current, route))
       }
       try {
-        // hook为路由守卫等钩子函数
+        /**
+         * hook为路由守卫等钩子函数
+         * hook统一传入三个参数（to, from, next）
+         * 文档中的next参数是指(to: any) => {...}，与上面的next不同
+         */
         hook(route, current, (to: any) => {
           if (to === false) {
             // next(false) -> abort navigation, ensure current URL
@@ -1295,7 +1563,10 @@ export class History {
               (typeof to.path === 'string' || typeof to.name === 'string'))
           ) {
             // next('/') or next({ path: '/' }) -> redirect
+            // hook内部调用next时候，可以传入路径相关内容
+            // 这时候就直接会转到改路径，类似于 -> redirect
             abort(createNavigationRedirectedError(current, route))
+            // 如果有replace属性就调用replace方法，否则调用push方法
             if (typeof to === 'object' && to.replace) {
               this.replace(to)
             } else {
@@ -1338,28 +1609,22 @@ export class History {
   }
 ```
 
-<br/>
-<br/>
-<br/>
 
-###### HashHistory类
 
+###### HistoryRouter
+HistoryRouter的实现基本于HashRouter一致。差异在于HistoryRouter不会做一些容错处理，不会判断当前环境是否支持historyAPI。默认监听popstate事件，默认使用histroyAPI。感兴趣的同学可以看/history/html5.js中关于HistoryRouter的定义。
 
 
 
-<br/>
-<br/>
-<br/>
+小结：
+> runQueue其实不难，它只是利用了回到函数与递归完成异步的功能
+> beforeRouteEnter这里其实最关键的就是对用户自定义的钩子做了一层wrapped，以便可以在整个导航流程末尾异步执行next函数内传入的函数。
+> 另外，runQueue的执行与钩子函数的next，可能有点绕，只要区分开，整体都很简单
+> 本文只介绍了基类的方法，abstract/hash/history都继承了基类方法，其push等方法也都会调用transitionTo方法。因此掌握了基本的方法，其他问题不大。
 
-###### HTML5History类
 
 
 
-<br/>
-<br/>
-<br/>
-
-###### AbstractHistory类
 
 
 

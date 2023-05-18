@@ -177,7 +177,7 @@ export class History {
    * @param {Function} [onAbort] 失败的回调
    */
   confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
-    // 当前的路由
+    // current为当前跳转前的路由
     const current = this.current
     this.pending = route
     const abort = err => {
@@ -200,7 +200,7 @@ export class History {
     const lastRouteIndex = route.matched.length - 1
     // 获取当前的record
     const lastCurrentIndex = current.matched.length - 1
-    // 如果跳转前后的路由相同就调用失败的回调
+    // 如果跳转前后的路由相同就调用失败的回调，并return
     if (
       isSameRoute(route, current) &&
       // in the case the route map has been dynamically appended to
@@ -220,19 +220,19 @@ export class History {
     // queue存下所有路由钩子函数
     const queue: Array<?NavigationGuard> = [].concat(
       // in-component leave guards
-      // 组件内部beforeRouteLeave
+      // 1. 组件内部 beforeRouteLeave
       extractLeaveGuards(deactivated),
       // global before hooks
-      // 全部前置守卫 beforeEach
+      // 2. 全部前置守卫 beforeEach
       this.router.beforeHooks,
       // in-component update hooks
-      // vue组件内部 beforeRouteUpdate
+      // 3. vue组件内部 beforeRouteUpdate
       extractUpdateHooks(updated),
       // in-config enter guards
-      // 路由配置里面的beforeEnter
+      // 4. 路由配置里面的 beforeEnter
       activated.map(m => m.beforeEnter),
       // async components
-      // 解析异步组件
+      // 5. 解析异步组件
       resolveAsyncComponents(activated)
     )
 
@@ -247,7 +247,7 @@ export class History {
       }
       try {
         /**
-         * hook为路由守卫等钩子函数
+         * hook为路由守卫等钩子函数，调用
          * hook统一传入三个参数（to, from, next）
          * 文档中的next参数是指(to: any) => {...}，与上面的next不同
          */
@@ -285,24 +285,30 @@ export class History {
       }
     }
 
-    // 按照queue队列一个一个执行异步回调
+    /**
+     * 按照queue队列一个一个执行异步回调
+     * @param {*} queue 函数队列
+     * @param {*} iterator 迭代器 参数1 queue[index] 参数二 next， next执行的时候 当前queue[index]执行完，进入下一个queue[index+1]
+     * @param {*} function 迭代完成后的回调函数
+     */
     runQueue(queue, iterator, () => {
       // wait until async components are resolved before
       // 在解析异步组件之前
       // extracting in-component enter guards
-      // 组件内部的beforeRouteEnter
+      // 6. 组件内部的 beforeRouteEnter
       const enterGuards = extractEnterGuards(activated)
-      // 全部的beforeResolve
+      // 7. 全部的beforeResolve
       const queue = enterGuards.concat(this.router.resolveHooks)
       runQueue(queue, iterator, () => {
         if (this.pending !== route) {
           return abort(createNavigationCancelledError(current, route))
         }
         this.pending = null
-        // 导航被确认
+        // 8. 导航被确认
         onComplete(route)
         if (this.router.app) {
           this.router.app.$nextTick(() => {
+            // 9. 用创建好的实例调用 beforeRouteEnter 守卫中传给 next 的回调函数
             handleRouteEntered(route)
           })
         }
@@ -386,7 +392,14 @@ function resolveQueue (
   }
 }
 
-// 返回指定的数组内的路由钩子函数
+/**
+ * 返回指定的数组内的路由钩子函数
+ * @param {*} records 
+ * @param {*} name 
+ * @param {*} bind 
+ * @param {*} reverse 
+ * @returns 
+ */
 function extractGuards (
   records: Array<RouteRecord>,
   name: string,

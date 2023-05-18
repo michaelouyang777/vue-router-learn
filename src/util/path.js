@@ -1,5 +1,3 @@
-/* @flow */
-
 /**
  * 导出处理之后的路径地址
  *
@@ -91,6 +89,7 @@ export function parsePath (path: string): {
   }
 }
 
+// 将path中的 //, 替换为 /
 export function cleanPath (path: string): string {
   return path.replace(/\/\//g, '/')
 }
