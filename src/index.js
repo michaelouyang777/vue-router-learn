@@ -31,18 +31,18 @@ export default class VueRouter {
   static START_LOCATION: Route
 
   // 声明实例属性
-  app: any
+  app: any // Vue 实例
   apps: Array<any>
   ready: boolean
   readyCbs: Array<Function>
-  options: RouterOptions
-  mode: string
+  options: RouterOptions // 路由配置
+  mode: string; // 路由模式，默认 hash
   history: HashHistory | HTML5History | AbstractHistory
-  matcher: Matcher
-  fallback: boolean
-  beforeHooks: Array<?NavigationGuard>
+  matcher: Matcher // 一个数组，包含当前路由的所有嵌套路径片段的路由记录。
+  fallback: boolean // 当浏览器不支持 history.pushState 控制路由是否应该回退到 hash 模式。默认值为 true。
+  beforeHooks: Array<?NavigationGuard> // 前置钩子集合
   resolveHooks: Array<?NavigationGuard>
-  afterHooks: Array<?AfterNavigationHook>
+  afterHooks: Array<?AfterNavigationHook> // 后置钩子集合
 
   constructor (options: RouterOptions = {}) {
     this.app = null
@@ -52,17 +52,22 @@ export default class VueRouter {
     this.resolveHooks = []
     this.afterHooks = []
 
+    
+    // 【第一件事】：根据传入的routes（在options内）生成路由配置记录表
     // 创建 matcher 匹配函数，createMatcher函数返回一个对象 { match, addRoute, getRoutes, addRoutes } 【重要】
     this.matcher = createMatcher(options.routes || [], this)
 
+
+    // 【第二件事】：根据不同的mode模式生成监控路由变化的History对象
     // 获取传入的路由模式，默认使用hash
     let mode = options.mode || 'hash'
 
-    // h5的history有兼容性 对history做降级处理
+    // 如果传入的模式为 ·history· 在浏览器环境下不支持 history 模式，则强制回退到 hash 模式（降级处理）
     this.fallback = mode === 'history' && !supportsPushState && options.fallback !== false
     if (this.fallback) {
       mode = 'hash'
     }
+    // 如果不是在浏览器环境内，使用 abstract 模式
     if (!inBrowser) {
       mode = 'abstract'
     }
@@ -90,11 +95,19 @@ export default class VueRouter {
     return this.matcher.match(raw, current, redirectedFrom)
   }
 
+  /**
+   * 获取当前路由
+   */
   get currentRoute (): ?Route {
     return this.history && this.history.current
   }
 
-  init (app: any /* Vue component instance */) {
+  /**
+   * 初始化
+   * @param {*} app 
+   */
+  init(app: any /* Vue component instance */) {
+    // 断言有没有安装插件，如果没有抛出错误提示
     process.env.NODE_ENV !== 'production' &&
       assert(
         install.installed,
@@ -169,6 +182,15 @@ export default class VueRouter {
     })
   }
 
+  /**
+   * Router 实例方法 beforeEach 全局前置的导航守卫。
+   * 当一个导航触发时，全局前置守卫按照创建顺序调用。
+   * 守卫是异步解析执行，此时导航在所有守卫 resolve 完之前一直处于 等待中。
+   *
+   * @param {Function} fn (to, from, next) => {}
+   * @memberof VueRouter
+   *
+   */
   beforeEach (fn: Function): Function {
     return registerHook(this.beforeHooks, fn)
   }
@@ -176,7 +198,13 @@ export default class VueRouter {
   beforeResolve (fn: Function): Function {
     return registerHook(this.resolveHooks, fn)
   }
-
+  
+  /**
+   * Router 实例方法 afterEach 全局后置钩子
+   *
+   * @param {Function} fn (to, from) => {}
+   * @memberof VueRouter
+   */
   afterEach (fn: Function): Function {
     return registerHook(this.afterHooks, fn)
   }
@@ -188,7 +216,15 @@ export default class VueRouter {
   onError (errorCb: Function) {
     this.history.onError(errorCb)
   }
-
+  
+  /**
+   * 编程式导航 push 导航到对应的 location
+   * 这个方法会向 history 栈添加一个新的记录，
+   * 所以，当用户点击浏览器后退按钮时，则回到之前的 location。
+   *
+   * @param {RawLocation} location
+   * @memberof VueRouter
+   */
   push (location: RawLocation, onComplete?: Function, onAbort?: Function) {
     // $flow-disable-line
     if (!onComplete && !onAbort && typeof Promise !== 'undefined') {
@@ -199,7 +235,14 @@ export default class VueRouter {
       this.history.push(location, onComplete, onAbort)
     }
   }
-
+  
+  /**
+   * 编程式导航 replace 导航到对应的 location
+   * 它不会向 history 添加新记录，而是跟它的方法名一样 —— 替换掉当前的 history 记录。
+   *
+   * @param {RawLocation} location
+   * @memberof VueRouter
+   */
   replace (location: RawLocation, onComplete?: Function, onAbort?: Function) {
     // $flow-disable-line
     if (!onComplete && !onAbort && typeof Promise !== 'undefined') {
@@ -211,18 +254,40 @@ export default class VueRouter {
     }
   }
 
+  /**
+   * 在 history 记录中向前或者后退多少步，类似 window.history.go(n)。
+   *
+   * @param {number} n
+   * @memberof VueRouter
+   */
   go (n: number) {
     this.history.go(n)
   }
 
+  /**
+   * 后退
+   *
+   * @memberof VueRouter
+   */
   back () {
     this.go(-1)
   }
-
+  
+  /**
+   * 前进
+   *
+   * @memberof VueRouter
+   */
   forward () {
     this.go(1)
   }
 
+  /**
+   * 获取匹配到的组件列表
+   *
+   * @returns {Array<any>}
+   * @memberof VueRouter
+   */
   getMatchedComponents (to?: RawLocation | Route): Array<any> {
     const route: any = to
       ? to.matched

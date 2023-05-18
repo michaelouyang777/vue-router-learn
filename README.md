@@ -63,7 +63,6 @@ src
 
 参考文章：
 https://blog.csdn.net/u013938465/article/details/79421239
-https://juejin.cn/post/6844903877263753223#heading-9
 
 
 ### 前言
@@ -126,7 +125,7 @@ const app = new Vue({
 
 以下分析，根据上面使用示例的步骤进行！！！
 
-#### 第一步：注册插件
+#### 使用第一步：注册插件
 
 ~~~ 
 使用`Vue.use(VueRouter)`方法将插件注入到Vue中。
@@ -143,12 +142,15 @@ if (inBrowser && window.Vue) {
 }
 ```
 
+<br/>
+
 先看看 vue 内的 use 方法源码实现：
 
 `Vue.use()`方法的内部，其实就是调用plugin的`install`方法。
 
 ```js
 // vue/src/core/global-api/use.js
+
 /**
  * 定义全局API Vue.use()
  * @param {*} Vue 
@@ -187,6 +189,8 @@ export function initUse (Vue: GlobalAPI) {
   }
 }
 ```
+
+<br/>
 
 **既然`Vue.use(VueRouter)`会自动加载VueRouter中的`install`方法，那么在vue-router中的`install`方法，又是如何编写的呢？**
 
@@ -292,7 +296,7 @@ export function install (Vue) {
 <br/>
 <br/>
 
-#### 第二步：初始化router实例
+#### 使用第二步：初始化router实例
 
 ```js
 const router = new VueRouter({
@@ -302,7 +306,7 @@ const router = new VueRouter({
 ```
 
 使用`new VueRouter()`初始化router实例，并传入一个对象，对象内包裹mode、routes（路由配置）等参数。
-[Router构建选项](https://v3.router.vuejs.org/zh/api/#router-%E6%9E%84%E5%BB%BA%E9%80%89%E9%A1%B9)
+[查看更多Router构建选项](https://v3.router.vuejs.org/zh/api/#router-%E6%9E%84%E5%BB%BA%E9%80%89%E9%A1%B9)
 
 **那么VueRouter类的构造函数又是怎么实现的？**
 
@@ -324,9 +328,13 @@ export default class VueRouter {
     this.resolveHooks = []
     this.afterHooks = []
     
+
+    // 【第一件事】：根据传入的routes（在options内）生成路由配置记录表
     // 路由匹配器。createMatcher函数返回一个对象 {match, addRoutes} 【重要】
     this.matcher = createMatcher(options.routes || [], this)
 
+
+    // 【第二件事】：根据不同的mode模式生成监控路由变化的History对象
     // 获取传入的路由模式，默认使用hash
     let mode = options.mode || 'hash'
 
@@ -335,6 +343,7 @@ export default class VueRouter {
     if (this.fallback) {
       mode = 'hash'
     }
+    // 如果不是在浏览器环境内，使用 abstract 模式
     if (!inBrowser) {
       mode = 'abstract'
     }
@@ -362,9 +371,13 @@ export default class VueRouter {
 }
 ```
 
+<br/>
+
+##### new Router() 构造函数所做的第一件事情
+
 下面来看看第一件事情：根据传入的routes（在options内）生成路由配置记录表
 
-##### 基础概念 —— 路由匹配器matcher
+###### 基础概念 —— 路由匹配器matcher
 路由匹配器macther是由create-matcher生成一个对象，其将传入VueRouter类的路由记录进行内部转换，对外提供根据location匹配路由方法——match、注册路由方法——addRoutes。
 * match方法：根据内部的路由映射匹配location对应的路由对象route
 * addRoutes方法：将路由记录添加到matcher实例的路由映射中
@@ -982,24 +995,28 @@ route = {
 2. 判断如果有record.matchAs属性，则执行别名处理的逻辑。
 3. 不论是执行重定向的逻辑还是别名处理的逻辑，最后统一返回 `createRoute` 函数创建路由对象。
 
+<br/>
 
+##### new Router() 构造函数所做的第二件事情
 
-下面来说第二件事情：根据不同的mode模式生成监控路由变化的History对象
-##### 基础概念 —— History类
+再来说说第二件事情：根据不同的mode模式生成监控路由变化的History对象
 
-History 有 HTML5History、HashHistory、AbstractHistory 三类，同时它们继承了统一个父类 History类，这是history的基类。
+###### base基类 —— History类
+
+`HTML5History`、`HashHistory`、`AbstractHistory` 这3个类都继承了同一个父类 `History` 类，这是history的基类。
 
 继承关系图如下：
 ```
 History
 ├── HTML5History
 ├── HashHistory
-├── AbstractHistory
+└── AbstractHistory
 ```
 
 首先先来看看base基类 History ：
 
 ```js
+// src/history/base.js
 export class History {
   router: Router
   base: string
@@ -1046,60 +1063,47 @@ export class History {
   /**
    * 注册回调
    */
-  listen (cb: Function) {
-    // ...
-  }
+  listen (cb: Function)
 
   /**
    * 准备函数
    */
-  onReady (cb: Function, errorCb: ?Function) {
-    // ...
-  }
+  onReady (cb: Function, errorCb: ?Function)
 
   /**
    * 错误函数
    */
-  onError (errorCb: Function) {
-    // ...
-  }
+  onError (errorCb: Function)
 
   /**
    * 核心跳转方法
    */
-  transitionTo (location: RawLocation, onComplete?: Function, onAbort?: Function) {
-    // ...
-  }
+  transitionTo (location: RawLocation, onComplete?: Function, onAbort?: Function) 
 
   /**
    * 确认过渡
    */
-  confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
-    // ...
-  }
+  confirmTransition (route: Route, onComplete: Function, onAbort?: Function) 
 
   /**
    * 路由更新
    */
-  updateRoute (route: Route) {
-    // ...
-  }
+  updateRoute (route: Route) 
 
-  setupListeners () {
-    // ...
-  }
+  setupListeners () 
 
-  teardown () {
-    // ...
-  }
+  teardown () 
 }
+
+// 其余的是base.js的私有函数，为该类服务
+// ...
 ```
 
 下面重点分析一下两个方法（`transitionTo` 与 `confirmTransition`）
 
-**`transitionTo` 函数**
+**`transitionTo`函数**
 
-`transitionTo` 函数有三个参数：
+`transitionTo`函数有三个参数：
 - location   ：目标路径；
 - onComplete ：成功的回调函数；
 - onAbort    ：失败的回调函数；
@@ -1115,6 +1119,8 @@ export class History {
        <1> 触发失败的回调 onAbort
 
 ```js
+// src/history/base.js
+
   /**
    * 核心跳转方法
    * @param {RawLocation} location 目标路径
@@ -1192,7 +1198,7 @@ export class History {
 ```
 
 
-** `confirmTransition` 函数**
+**`confirmTransition`函数**
 
 `confirmTransition` 是一个很重要的函数方法，文档内**完整的导航解析流程**就在此函数内定义。
 
@@ -1332,24 +1338,39 @@ export class History {
   }
 ```
 
+<br/>
+<br/>
+<br/>
+
+###### HashHistory类
 
 
 
 
+<br/>
+<br/>
+<br/>
+
+###### HTML5History类
+
+
+
+<br/>
+<br/>
+<br/>
+
+###### AbstractHistory类
 
 
 
 
+<br/>
+<br/>
+<br/>
+<br/>
+<br/>
 
-
-
-
-
-
-
-
-
-#### 第三步：生成vue实例
+#### 使用第三步：生成vue实例
 
 ```js
 const app = new Vue({
@@ -1522,17 +1543,39 @@ init方法中主要做了如下几件事：
 
 
 
+<br/>
+<br/>
+<br/>
+<br/>
+<br/>
 
 
 
+## TODO List
+
+- [x] Vue-router注册插件的原理
+
+- [ ] 初始化router实例原理之match匹配器
+
+- [ ] 初始化router实例原理之history对象
+
+- [ ] router全局路由守卫
+
+- [ ] route路由守卫
+
+- [ ] 组件内路由守卫
+
+- [ ] `<router-view>`组件的原理
+
+- [ ] `<router-link>`组件的原理
 
 
 
-
-
-
-
-
+<br/>
+<br/>
+<br/>
+<br/>
+<br/>
 
 
 

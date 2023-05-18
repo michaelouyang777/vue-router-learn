@@ -1,7 +1,7 @@
 import View from './components/view'
 import Link from './components/link'
 
-// 声明局部变量_Vue，并导出
+// 声明局部变量_Vue，并导出，供其他地方使用Vue对象
 export let _Vue
 
 /**
@@ -9,7 +9,7 @@ export let _Vue
  * @param {*} Vue 
  */
 export function install (Vue) {
-  // 判断是否已经加载过VueRouter，有则返回
+  // 判断是否已经加载过VueRouter，有则返回，防止插件被多次安装
   if (install.installed && _Vue === Vue) return
   // 设置标识installed为true，防止重复执行install
   install.installed = true
@@ -34,7 +34,7 @@ export function install (Vue) {
     }
   }
 
-  // 调用Vue的全局api mixin，混入
+  // 调用Vue的全局api mixin，添加生命周期扣子触发时机需要执行的逻辑，当应用执行全局new Vue()的时候会触发
   // TODO Q：这里使用了大量的this，分别是代表了什么？
   Vue.mixin({
     // 在beforeCreate扣子函数进行路由注册
@@ -62,11 +62,11 @@ export function install (Vue) {
     }
   })
 
-  // 将$router、$route对象设置为响应式对象，放置在Vue.prototype内
+  // 在 Vue 原型上添加 $router 属性( VueRouter )并代理到 this.$root._router
   Object.defineProperty(Vue.prototype, '$router', {
     get () { return this._routerRoot._router }
   })
-
+  // 在 Vue 原型上添加 $route 属性( 当前路由对象 )并代理到 this.$root._route
   Object.defineProperty(Vue.prototype, '$route', {
     get () { return this._routerRoot._route }
   })
