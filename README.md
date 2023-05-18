@@ -1057,7 +1057,7 @@ export default class VueRouter {
 
 ###### HashHistory 类
 
-HashHistory构造函数做了3件事：
+HashHistory 的构造函数做了3件事：
 1. `super(router, base)`调用父类的构造函数
 2-1. 如果是回退hash的情况，并且执行`checkFallback`判断当前路径是否有/#/。如果没有将会添加'/#/'，返回
 2-2. 如果不是回退hash的情况，执行`ensureSlash()`(`ensureSlash`里面做了什么，后面再解析)
@@ -1076,7 +1076,6 @@ export class HashHistory extends History {
     ensureSlash()
   }
 }
-
 ```
 
 第1步，`super(router, base)`调用父类的构造函数，其他路由模式都会执行到，因此先跳过这一步，后面再统一说明。
@@ -1242,20 +1241,65 @@ export function replaceState (url?: string) {
 
 ###### HTML5History 类
 
+HTML5History 的构造函数做了2件事：
+1. `super(router, base)`调用父类的构造函数
+2. 获取根路径
 
+```js
+export class HTML5History extends History {
+  _startLocation: string
 
+  constructor (router: Router, base: ?string) {
+    // 调用父类，并传入VueRouter路由实例和基础路径
+    super(router, base)
+    // 获取根路径
+    this._startLocation = getLocation(this.base)
+  }
+}
 
+/**
+ * 获取路径
+ * @param {*} base 
+ * @returns 
+ */
+export function getLocation (base: string): string {
+  // 路径
+  let path = window.location.pathname
+  // 如果传入的路径存在，并且传入的路径存在于location.pathname中
+  if (base && path.toLowerCase().indexOf(base.toLowerCase()) === 0) {
+    // 截取path后面部分
+    path = path.slice(base.length)
+  }
+  // 返回组装的路径
+  return (path || '/') + window.location.search + window.location.hash
+}
+```
 
-
-
+history路由模式比hash路由的构造函数要简单
 
 <br/>
 
 ###### AbstractHistory 类
 
+AbstractHistory 的构造函数只做了1件事：
+1. `super(router, base)`调用父类的构造函数
 
+```js
+export class AbstractHistory extends History {
+  index: number
+  stack: Array<Route>
 
+  constructor (router: Router, base: ?string) {
+    super(router, base)
+    this.stack = []
+    this.index = -1
+  }
+}
+```
 
+<br/>
+<br/>
+<br/>
 
 ###### base基类 —— History 类
 
