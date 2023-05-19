@@ -119,30 +119,25 @@ export default class VueRouter {
 
     // set up app destroyed handler
     // https://github.com/vuejs/vue-router/issues/2639
-    // 使用$once监听组件destroyed生命周期钩子，保证对应组件销毁时组件app实例从router.apps上移除。
+    // 使用$once监听组件destroyed生命周期钩子，保证对应组件销毁时组件app实例从router.apps上移除，避免内存泄露
     app.$once('hook:destroyed', () => {
-      // clean out app from this.apps array once destroyed
       // 从this.apps从查询是否存在传入app
       const index = this.apps.indexOf(app)
       // 如果index > -1，说明已经存在，那么从this.apps中移除
       if (index > -1) this.apps.splice(index, 1)
-      // ensure we still have a main app or null if no apps
-      // we do not release the router so it can be reused
       // 判断当前this.app与传入的app是不是同一个，如果是，则从this.apps中取出第一个app
       if (this.app === app) this.app = this.apps[0] || null
       // 判断当前this.app是否存在，不存在则销毁。
       if (!this.app) this.history.teardown()
     })
 
-    // main app previously initialized
-    // return as we don't need to set up new history listener
     // 判断this.app是否存在，有则返回。保证VueRouter只初始化一次，如果初始化了就终止后续逻辑
     if (this.app) {
       return
     }
-
     // 将存入的app实例赋给this.app
     this.app = app
+    
 
     // 获取history实例
     const history = this.history
@@ -173,6 +168,7 @@ export default class VueRouter {
         setupListeners
       )
     }
+
 
     // 使用 history.listen 监听路由变化来更新根组件实例 app._route 是当前跳转的路由
     history.listen(route => {

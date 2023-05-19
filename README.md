@@ -98,7 +98,7 @@ const router = new VueRouter({
   routes 
 })
 
-// 第三步：创建和挂载根实例
+// 第三步：创建和挂载vue根实例
 // 使用 router-link 组件来导航路由出口，路由匹配到的组件将渲染在这里
 const app = new Vue({
   router,
@@ -1343,94 +1343,169 @@ export class History {
 可以看到，History的构造函数内，只是初始化了一些基本值，并没有初始化的逻辑需要执行。那么`index.js`根据不同的mode来生成不同的history实例 `new HTML5History()`、`new HashHistory()`、`new AbstractHistory()`的初始化逻辑就说到这里了。
 
 <br/>
+<br/>
+<br/>
+<br/>
+<br/>
 
-###### History 类详细分析
+#### 使用第三步：创建和挂载vue根实例
 
 ```js
-// src/history/base.js
-export class History {
-  router: Router
-  base: string
-  current: Route
-  pending: ?Route
-  cb: (r: Route) => void
-  ready: boolean
-  readyCbs: Array<Function>
-  readyErrorCbs: Array<Function>
-  errorCbs: Array<Function>
-  listeners: Array<Function>
-  cleanupListeners: Function
-
-  // implemented by sub-classes
-  // 以下这些方法由子类去实现
-  +go: (n: number) => void
-  +push: (loc: RawLocation, onComplete?: Function, onAbort?: Function) => void
-  +replace: (
-    loc: RawLocation,
-    onComplete?: Function,
-    onAbort?: Function
-  ) => void
-  +ensureURL: (push?: boolean) => void
-  +getCurrentLocation: () => string
-  +setupListeners: Function
-
-  constructor (router: Router, base: ?string) {
-    // VueRouter 实例
-    this.router = router
-    // 应用的根路径
-    this.base = normalizeBase(base)
-    // start with a route object that stands for "nowhere"
-    // 从一个表示 “nowhere” 的 route 对象开始
-    this.current = START
-    // 等待状态标志
-    this.pending = null
-    this.ready = false
-    this.readyCbs = []
-    this.readyErrorCbs = []
-    this.errorCbs = []
-    this.listeners = []
-  }
-
-  /**
-   * 注册回调
-   */
-  listen (cb: Function)
-
-  /**
-   * 准备函数
-   */
-  onReady (cb: Function, errorCb: ?Function)
-
-  /**
-   * 错误函数
-   */
-  onError (errorCb: Function)
-
-  /**
-   * 核心跳转方法
-   */
-  transitionTo (location: RawLocation, onComplete?: Function, onAbort?: Function) 
-
-  /**
-   * 确认过渡
-   */
-  confirmTransition (route: Route, onComplete: Function, onAbort?: Function) 
-
-  /**
-   * 路由更新
-   */
-  updateRoute (route: Route) 
-
-  setupListeners () 
-
-  teardown () 
-}
-
-// 其余的是base.js的私有函数，为该类服务
-// ...
+const app = new Vue({
+  router,
+  template: `
+    <div id="app">
+      <h1>Basic</h1>
+      <ul>
+        <li><router-link to="/">/</router-link></li>
+        <li><router-link to="/user">用户</router-link></li>
+        <li><router-link to="/role">角色</router-link></li>
+        <router-link tag="li" to="/user">/用户</router-link>
+      </ul>
+      <router-view class="view"></router-view>
+    </div>
+  `
+}).$mount('#app')
 ```
 
-下面重点分析一下两个方法（`transitionTo` 与 `confirmTransition`）
+把router实例以参数的形式，传入到`new Vue()`中，并初始化vm实例。
+此时会执行Vue的生命周期。那么在install方法中使用mixin混入到Vue中的这部分逻辑就会执行，代码如下：
+
+```js
+// install.js
+
+export function install (Vue) {
+  ...
+
+  // 调用Vue的全局api mixin，添加生命周期扣子触发时机需要执行的逻辑，当应用执行全局new Vue()的时候会触发
+  Vue.mixin({
+    // 在beforeCreate扣子函数进行路由注册
+    beforeCreate () {
+      // 验证vue是否有router对象
+      // 没有router对象，则初始化
+      if (isDef(this.$options.router)) {
+        // 将_routerRoot指向根组件
+        this._routerRoot = this
+        // 将router对象挂载到根组件元素_router上
+        this._router = this.$options.router
+        // 初始化，建立路由监控
+        this._router.init(this)
+        // 劫持数据_route，一旦_route数据发生变化后，通知router-view执行render方法
+        Vue.util.defineReactive(this, '_route', this._router.history.current)
+      } else {
+        // 如果有router对象，去寻找根组件，将_routerRoot执行根组件（解决嵌套关系时候_routerRoot指向不一致问题）
+        this._routerRoot = (this.$parent && this.$parent._routerRoot) || this
+      }
+      registerInstance(this, this)
+    },
+    // 在destroyed的扣子函数销毁实例
+    destroyed () {
+      registerInstance(this)
+    }
+  })
+}
+```
+
+首先会执行`beforeCreate`扣子函数，验证vue是否有router对象，没有则初始化。有则寻找父组件的`_routerRoot`。
+
+在没有router对象时，会调用`this.$options.router`拿到传入到`new Vue({ router })`中的router实例，通过这个实例可以调用VueRouter的实例方法`init`，即`this._router.init(this)`，来初始化router。
+
+<br/>
+
+下面来看看`init`实例方法中实现：
+
+```js
+// index.js
+
+export default class VueRouter {
+  // ...
+
+  // 初始化
+  init (app: any /* Vue component instance */) {
+    process.env.NODE_ENV !== 'production' &&
+      assert(
+        install.installed,
+        `not installed. Make sure to call \`Vue.use(VueRouter)\` ` +
+          `before creating root instance.`
+      )
+    // 首先将传入的app实例，存入this.apps中
+    this.apps.push(app)
+
+
+    // set up app destroyed handler
+    // https://github.com/vuejs/vue-router/issues/2639
+    // 1. 声明式地注册组件destroyed生命周期钩子，保证对应组件销毁时组件app实例从router.apps上移除。
+    app.$once('hook:destroyed', () => {
+      // 从this.apps从查询是否存在传入app
+      const index = this.apps.indexOf(app)
+      // 如果index > -1，说明已经存在，那么从this.apps中移除
+      if (index > -1) this.apps.splice(index, 1)
+      // 判断当前this.app与传入的app是不是同一个，如果是，则从this.apps中取出第一个app
+      if (this.app === app) this.app = this.apps[0] || null
+      // 判断当前this.app是否存在，不存在则销毁。
+      if (!this.app) this.history.teardown()
+    })
+
+
+    // 2. 判断this.app是否存在，有则返回
+    if (this.app) {
+      return
+    }
+    // 将存入的app实例赋给this.app
+    this.app = app
+
+
+    // 获取history实例
+    const history = this.history
+
+    // 3. 针对不同路由模式做不同的处理
+    if (history instanceof HTML5History || history instanceof HashHistory) {
+      // 定义handleInitialScroll函数
+      const handleInitialScroll = routeOrError => {
+        const from = history.current
+        const expectScroll = this.options.scrollBehavior
+        const supportsScroll = supportsPushState && expectScroll
+
+        if (supportsScroll && 'fullPath' in routeOrError) {
+          handleScroll(this, routeOrError, from, false)
+        }
+      }
+
+      // 定义setupListeners函数
+      const setupListeners = routeOrError => {
+        history.setupListeners()
+        handleInitialScroll(routeOrError)
+      }
+      
+      // 使用 history.transitionTo 分路由模式触发路由变化
+      history.transitionTo(
+        history.getCurrentLocation(),
+        setupListeners,
+        setupListeners
+      )
+    }
+
+
+    // 4. 使用 history.listen 监听路由变化来更新根组件实例 app._route 是当前跳转的路由
+    history.listen(route => {
+      this.apps.forEach(app => {
+        app._route = route
+      })
+    })
+  }
+
+}
+```
+
+init方法中主要做了如下几件事：
+1. **保证组件销毁时，组件app实例从router.apps上移除**  通过 `app.$once('hook:destroyed', () => {}` 声明式地监听组件destroyed生命周期钩子，保证对应组件销毁时组件app实例从router.apps上移除。
+2. **保证路由初仅始化一次**  由于init是被全局注册的mixin调用，此处通过`if(this.app)`判断`this.app`是否存在，保证路由初始化仅仅在根组件 <App /> 上初始化一次，`this.app`最后保存的根据组件实例。
+3. **触发路由变化**  使用 `history.transitionTo` 分路由模式触发路由变化。
+4. **开始路由监听**  使用 `history.listen` 监听路由变化，来更新根组件实例 app._route 是当前跳转的路由。
+
+<br/>
+
+这里重点看下`history.transitionTo`的相关逻辑
 
 **`transitionTo`函数**
 
@@ -1452,6 +1527,7 @@ export class History {
 ```js
 // src/history/base.js
 
+export class History {
   /**
    * 核心跳转方法
    * @param {RawLocation} location 目标路径
@@ -1526,6 +1602,8 @@ export class History {
       }
     )
   }
+
+}
 ```
 
 
@@ -1536,6 +1614,10 @@ export class History {
 在 `transitionTo` 函数执行时调用 `confirmTransition` 函数，往 `confirmTransition` 函数传入一个成功的回调，该回调会调用全局的 **afterEach** 钩子。
 
 ```js
+// src/history/base.js
+
+export class History {
+
   /**
    * 确认过渡
    * @param {Route} route 解析后的跳转路由
@@ -1674,11 +1756,9 @@ export class History {
       })
     })
   }
+
+}
 ```
-
-
-
-
 
 小结：
 > runQueue其实不难，它只是利用了回到函数与递归完成异步的功能
@@ -1688,165 +1768,16 @@ export class History {
 
 
 
-
-
-
-
-
-<br/>
-<br/>
-<br/>
-<br/>
 <br/>
 
-#### 使用第三步：生成vue实例
-
-```js
-const app = new Vue({
-  router,
-  template: `
-    <div id="app">
-      <h1>Basic</h1>
-      <ul>
-        <li><router-link to="/">/</router-link></li>
-        <li><router-link to="/user">用户</router-link></li>
-        <li><router-link to="/role">角色</router-link></li>
-        <router-link tag="li" to="/user">/用户</router-link>
-      </ul>
-      <router-view class="view"></router-view>
-    </div>
-  `
-}).$mount('#app')
-```
-
-把router实例以参数的形式，传入到`new Vue()`中，并初始化vm实例。
-此时会执行Vue的生命周期。那么在install方法中使用mixin混入到Vue中的这部分逻辑就会执行，代码如下：
+执行完`init`方法初始化router之后，最后会调用`registerInstance`方法，注册实例。
 
 ```js
 // install.js
 
-// 调用Vue的全局api mixin，混入
-Vue.mixin({
-  // 在beforeCreate扣子函数进行路由注册
-  beforeCreate () {
-    // 验证vue是否有router对象
-    // 没有router对象，则初始化
-    if (isDef(this.$options.router)) {
-      // 将_routerRoot指向根组件
-      this._routerRoot = this
-      // 将router对象挂载到根组件元素_router上
-      this._router = this.$options.router
-      // 初始化，建立路由监控
-      this._router.init(this)
-      // 劫持数据_route，一旦_route数据发生变化后，通知router-view执行render方法
-      Vue.util.defineReactive(this, '_route', this._router.history.current)
-    } else {
-      // 如果有router对象，去寻找根组件，将_routerRoot执行根组件（解决嵌套关系时候_routerRoot指向不一致问题）
-      this._routerRoot = (this.$parent && this.$parent._routerRoot) || this
-    }
-    registerInstance(this, this)
-  },
-  // 在destroyed的扣子函数销毁实例
-  destroyed () {
-    registerInstance(this)
-  }
-})
-```
+export function install (Vue) {
+  // ...
 
-首先会执行`beforeCreate`扣子函数，验证vue是否有router对象，没有则初始化。有则寻找父组件的`_routerRoot`。
-
-在没有router对象时，会调用`this.$options.router`拿到传入到`new Vue({ router })`中的router实例，通过这个实例可以调用VueRouter的实例方法init方法，即`this._router.init(this)`，来初始化router。下面来看看init实例方法中实现：
-
-```js
-// index.js
-
-  init (app: any /* Vue component instance */) {
-    process.env.NODE_ENV !== 'production' &&
-      assert(
-        install.installed,
-        `not installed. Make sure to call \`Vue.use(VueRouter)\` ` +
-          `before creating root instance.`
-      )
-    // 首先将传入的app实例，存入this.apps中
-    this.apps.push(app)
-
-
-    // set up app destroyed handler
-    // https://github.com/vuejs/vue-router/issues/2639
-    // 声明式地注册组件destroyed生命周期钩子，保证对应组件销毁时组件app实例从router.apps上移除。
-    app.$once('hook:destroyed', () => {
-      // clean out app from this.apps array once destroyed
-      // 从this.apps从查询是否存在传入app
-      const index = this.apps.indexOf(app)
-      // 如果index > -1，说明已经存在，那么从this.apps中移除
-      if (index > -1) this.apps.splice(index, 1)
-      // ensure we still have a main app or null if no apps
-      // we do not release the router so it can be reused
-      // 判断当前this.app与传入的app是不是同一个，如果是，则从this.apps中取出第一个app
-      if (this.app === app) this.app = this.apps[0] || null
-      // 判断当前this.app是否存在，不存在则销毁。
-      if (!this.app) this.history.teardown()
-    })
-
-
-    // main app previously initialized
-    // return as we don't need to set up new history listener
-    // 判断this.app是否存在，有则返回
-    if (this.app) {
-      return
-    }
-    // 将存入的app实例赋给this.app
-    this.app = app
-
-
-    // 获取history实例
-    const history = this.history
-    if (history instanceof HTML5History || history instanceof HashHistory) {
-      // 定义handleInitialScroll函数
-      const handleInitialScroll = routeOrError => {
-        const from = history.current
-        const expectScroll = this.options.scrollBehavior
-        const supportsScroll = supportsPushState && expectScroll
-
-        if (supportsScroll && 'fullPath' in routeOrError) {
-          handleScroll(this, routeOrError, from, false)
-        }
-      }
-
-      // 定义setupListeners函数
-      const setupListeners = routeOrError => {
-        history.setupListeners()
-        handleInitialScroll(routeOrError)
-      }
-      
-      // 使用 history.transitionTo 分路由模式触发路由变化
-      history.transitionTo(
-        history.getCurrentLocation(),
-        setupListeners,
-        setupListeners
-      )
-    }
-
-
-    // 使用 history.listen 监听路由变化来更新根组件实例 app._route 是当前跳转的路由
-    history.listen(route => {
-      this.apps.forEach(app => {
-        app._route = route
-      })
-    })
-  }
-```
-
-init方法中主要做了如下几件事：
-1. **监听destroyed生命周期**  通过 `app.$once('hook:destroyed', () => {}` 声明式地监听组件destroyed生命周期钩子，保证对应组件销毁时组件app实例从router.apps上移除。
-2. **保证路由初仅始化一次**  由于init是被全局注册的mixin调用，此处通过`if(this.app)`判断`this.app`是否存在，保证路由初始化仅仅在根组件 <App /> 上初始化一次，`this.app`最后保存的根据组件实例。
-3. **触发路由变化**  使用 `history.transitionTo` 分路由模式触发路由变化。
-4. **开始路由监听**  使用 `history.listen` 监听路由变化，来更新根组件实例 app._route 是当前跳转的路由。
-
-
-执行完init方法初始化router之后，最后会调用`registerInstance`方法，注册实例。
-
-```js
   /**
    * 定义注册实例函数
    * @param {*} vm vue实例
@@ -1858,18 +1789,15 @@ init方法中主要做了如下几件事：
       i(vm, callVal)
     }
   }
+
+  // ...
+}
 ```
 
 至此，路由的初始化工作就完成了。
 
-
-那么路由引入的组件，如何展示在`<router-view />`上？
-
-
-
-
-
-
+**小结：**
+TODO `registerInstance`函数内的逻辑还不明白为什么这样写是注册实例？
 
 
 <br/>
@@ -1877,6 +1805,11 @@ init方法中主要做了如下几件事：
 <br/>
 <br/>
 <br/>
+
+
+TODO 那么路由引入的组件，如何展示在`<router-view />`上？
+
+
 
 
 
@@ -1905,6 +1838,94 @@ init方法中主要做了如下几件事：
 <br/>
 <br/>
 <br/>
+
+## 各种 API 详解
+
+### History 类详细分析
+
+```js
+// src/history/base.js
+export class History {
+  router: Router
+  base: string
+  current: Route
+  pending: ?Route
+  cb: (r: Route) => void
+  ready: boolean
+  readyCbs: Array<Function>
+  readyErrorCbs: Array<Function>
+  errorCbs: Array<Function>
+  listeners: Array<Function>
+  cleanupListeners: Function
+
+  // implemented by sub-classes
+  // 以下这些方法由子类去实现
+  +go: (n: number) => void
+  +push: (loc: RawLocation, onComplete?: Function, onAbort?: Function) => void
+  +replace: (
+    loc: RawLocation,
+    onComplete?: Function,
+    onAbort?: Function
+  ) => void
+  +ensureURL: (push?: boolean) => void
+  +getCurrentLocation: () => string
+  +setupListeners: Function
+
+  constructor (router: Router, base: ?string) {
+    // VueRouter 实例
+    this.router = router
+    // 应用的根路径
+    this.base = normalizeBase(base)
+    // start with a route object that stands for "nowhere"
+    // 从一个表示 “nowhere” 的 route 对象开始
+    this.current = START
+    // 等待状态标志
+    this.pending = null
+    this.ready = false
+    this.readyCbs = []
+    this.readyErrorCbs = []
+    this.errorCbs = []
+    this.listeners = []
+  }
+
+  /**
+   * 注册回调
+   */
+  listen (cb: Function)
+
+  /**
+   * 准备函数
+   */
+  onReady (cb: Function, errorCb: ?Function)
+
+  /**
+   * 错误函数
+   */
+  onError (errorCb: Function)
+
+  /**
+   * 核心跳转方法
+   */
+  transitionTo (location: RawLocation, onComplete?: Function, onAbort?: Function) 
+
+  /**
+   * 确认过渡
+   */
+  confirmTransition (route: Route, onComplete: Function, onAbort?: Function) 
+
+  /**
+   * 路由更新
+   */
+  updateRoute (route: Route) 
+
+  setupListeners () 
+
+  teardown () 
+}
+
+// 其余的是base.js的私有函数，为该类服务
+// ...
+```
 
 
 
