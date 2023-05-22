@@ -75,8 +75,11 @@ export class HTML5History extends History {
     const { current: fromRoute } = this
     // 调用跳转核心方法
     this.transitionTo(location, route => {
+      // 向history栈添加记录
       pushState(cleanPath(this.base + route.fullPath))
+      // 滚动事件
       handleScroll(this.router, route, fromRoute, false)
+      // 如果有成功的回调函数传入，就执行
       onComplete && onComplete(route)
     }, onAbort)
   }
@@ -87,11 +90,15 @@ export class HTML5History extends History {
    * @param {*} onComplete 
    * @param {*} onAbort 
    */
-  replace (location: RawLocation, onComplete?: Function, onAbort?: Function) {
+  replace(location: RawLocation, onComplete?: Function, onAbort?: Function) {
+    // 拿到当前路由对象
     const { current: fromRoute } = this
     this.transitionTo(location, route => {
+      // 向history栈中替换记录
       replaceState(cleanPath(this.base + route.fullPath))
+      // 滚动事件
       handleScroll(this.router, route, fromRoute, false)
+      // 如果有成功的回调函数传入，就执行
       onComplete && onComplete(route)
     }, onAbort)
   }

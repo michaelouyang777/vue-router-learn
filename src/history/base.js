@@ -136,7 +136,7 @@ export class History {
         onComplete && onComplete(route)
         // 抽象方法
         this.ensureURL()
-        // 触发跳转后的路由钩子
+        // 触发跳转后的路由钩子afterEach
         this.router.afterHooks.forEach(hook => {
           hook && hook(route, prev)
         })
@@ -177,9 +177,14 @@ export class History {
    * @param {Function} [onAbort] 失败的回调
    */
   confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
-    // current为当前跳转前的路由
+    // 当前跳转前的路由
     const current = this.current
     this.pending = route
+  
+    /**
+     * 1. 定义终止路由跳转函数
+     * @param {*} err 
+     */
     const abort = err => {
       // changed after adding errors with
       // https://github.com/vuejs/vue-router/pull/3047 before that change,
@@ -196,11 +201,13 @@ export class History {
       }
       onAbort && onAbort(err)
     }
+  
+  
     // 获取要跳转的record
     const lastRouteIndex = route.matched.length - 1
     // 获取当前的record
     const lastCurrentIndex = current.matched.length - 1
-    // 如果跳转前后的路由相同就调用失败的回调，并return
+    // 2. 判断是否导航到相同的路由，如果是就终止导航
     if (
       isSameRoute(route, current) &&
       // in the case the route map has been dynamically appended to
@@ -211,33 +218,32 @@ export class History {
       return abort(createNavigationDuplicatedError(current, route))
     }
 
-    // 解析钩子函数队列，包括导航的路由守卫，并异步调用
+  
+    /**
+     * 3. 将需要执行的路由守卫，以及最后解析异步组件，存放到一个数组中
+     */
+    // 获取所有需要激活，更新，销毁的路由
     const { updated, deactivated, activated } = resolveQueue(
       this.current.matched,
       route.matched
     )
-
-    // queue存下所有路由钩子函数
+    // 获取所有需要执行的路由守卫
     const queue: Array<?NavigationGuard> = [].concat(
-      // in-component leave guards
       // 1. 组件内部 beforeRouteLeave
       extractLeaveGuards(deactivated),
-      // global before hooks
       // 2. 全部前置守卫 beforeEach
       this.router.beforeHooks,
-      // in-component update hooks
       // 3. vue组件内部 beforeRouteUpdate
       extractUpdateHooks(updated),
-      // in-config enter guards
       // 4. 路由配置里面的 beforeEnter
       activated.map(m => m.beforeEnter),
-      // async components
       // 5. 解析异步组件
       resolveAsyncComponents(activated)
     )
 
+  
     /**
-     * 迭代器
+     * 4. 定义迭代器
      * @param {*} hook 定义全局/组件内部的路由钩子函数
      * @param {*} next 为renQueue内部的回调函数 ()=>{step(index+1)}，必须被执行
      */
@@ -285,8 +291,9 @@ export class History {
       }
     }
 
+  
     /**
-     * 按照queue队列一个一个执行异步回调
+     * 5. 按照queue队列一个一个执行异步回调（迭代所有的路由守卫）
      * @param {*} queue 函数队列
      * @param {*} iterator 迭代器 参数1 queue[index] 参数二 next， next执行的时候 当前queue[index]执行完，进入下一个queue[index+1]
      * @param {*} function 迭代完成后的回调函数

@@ -1569,7 +1569,7 @@ export class History {
         onComplete && onComplete(route)
         // 抽象方法
         this.ensureURL()
-        // 触发跳转后的路由钩子
+        // 触发跳转后的路由钩子afterEach
         this.router.afterHooks.forEach(hook => {
           hook && hook(route, prev)
         })
@@ -1603,15 +1603,30 @@ export class History {
     )
   }
 
+  /**
+   * 路由更新
+   */
+  updateRoute (route: Route) {
+    this.current = route
+    this.cb && this.cb(route)
+  }
+
 }
 ```
 
-
 **`confirmTransition`函数**
 
-`confirmTransition` 是一个很重要的函数方法，文档内[完整的导航解析流程](https://router.vuejs.org/zh/guide/advanced/navigation-guards.html#%E7%BB%84%E4%BB%B6%E5%86%85%E7%9A%84%E5%AE%88%E5%8D%AB)就在此函数内定义。
-
 在 `transitionTo` 函数执行时调用 `confirmTransition` 函数，往 `confirmTransition` 函数传入一个成功的回调，该回调会调用全局的 **afterEach** 钩子。
+
+`confirmTransition`函数主要做了哪些事情？
+1. 定义终止路由跳转函数
+2. 判断是否导航到相同的路由，如果是就终止导航
+3. 将需要执行的路由守卫，以及最后解析异步组件，存放到一个queue数组中
+4. 定义迭代器
+5. 按照queue队列一个一个执行异步回调（迭代所有的路由守卫）
+
+备注：
+> `confirmTransition` 是一个很重要的函数方法，文档内[完整的导航解析流程](https://router.vuejs.org/zh/guide/advanced/navigation-guards.html#%E7%BB%84%E4%BB%B6%E5%86%85%E7%9A%84%E5%AE%88%E5%8D%AB)
 
 ```js
 // src/history/base.js
@@ -1624,10 +1639,15 @@ export class History {
    * @param {Function} onComplete 成功的回调
    * @param {Function} [onAbort] 失败的回调
    */
-  confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
-    // 当前的路由
+    confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
+    // 当前跳转前的路由
     const current = this.current
     this.pending = route
+  
+    /**
+     * 1. 定义终止路由跳转函数
+     * @param {*} err 
+     */
     const abort = err => {
       // changed after adding errors with
       // https://github.com/vuejs/vue-router/pull/3047 before that change,
@@ -1644,11 +1664,13 @@ export class History {
       }
       onAbort && onAbort(err)
     }
+  
+  
     // 获取要跳转的record
     const lastRouteIndex = route.matched.length - 1
     // 获取当前的record
     const lastCurrentIndex = current.matched.length - 1
-    // 如果跳转前后的路由相同就调用失败的回调
+    // 2. 判断是否导航到相同的路由，如果是就终止导航
     if (
       isSameRoute(route, current) &&
       // in the case the route map has been dynamically appended to
@@ -1659,32 +1681,32 @@ export class History {
       return abort(createNavigationDuplicatedError(current, route))
     }
 
-    // 解析钩子函数队列，包括导航的路由守卫，并异步调用
+  
+    /**
+     * 3. 将需要执行的路由守卫，以及最后解析异步组件，存放到一个数组中
+     */
+    // 获取所有需要激活，更新，销毁的路由
     const { updated, deactivated, activated } = resolveQueue(
       this.current.matched,
       route.matched
     )
-
+    // 获取所有需要执行的路由守卫
     const queue: Array<?NavigationGuard> = [].concat(
-      // in-component leave guards
-      // 组件内部beforeRouteLeave
+      // 1. 组件内部 beforeRouteLeave
       extractLeaveGuards(deactivated),
-      // global before hooks
-      // 全部前置守卫 beforeEach
+      // 2. 全部前置守卫 beforeEach
       this.router.beforeHooks,
-      // in-component update hooks
-      // vue组件内部 beforeRouteUpdate
+      // 3. vue组件内部 beforeRouteUpdate
       extractUpdateHooks(updated),
-      // in-config enter guards
-      // 路由配置里面的beforeEnter
+      // 4. 路由配置里面的 beforeEnter
       activated.map(m => m.beforeEnter),
-      // async components
-      // 解析异步组件
+      // 5. 解析异步组件
       resolveAsyncComponents(activated)
     )
 
+  
     /**
-     * 迭代器
+     * 4. 定义迭代器
      * @param {*} hook 定义全局/组件内部的路由钩子函数
      * @param {*} next 为renQueue内部的回调函数 ()=>{step(index+1)}，必须被执行
      */
@@ -1694,7 +1716,7 @@ export class History {
       }
       try {
         /**
-         * hook为路由守卫等钩子函数
+         * hook为路由守卫等钩子函数，调用
          * hook统一传入三个参数（to, from, next）
          * 文档中的next参数是指(to: any) => {...}，与上面的next不同
          */
@@ -1732,24 +1754,31 @@ export class History {
       }
     }
 
-    // 按照queue队列一个一个执行异步回调
+  
+    /**
+     * 5. 按照queue队列一个一个执行异步回调（迭代所有的路由守卫）
+     * @param {*} queue 函数队列
+     * @param {*} iterator 迭代器 参数1 queue[index] 参数二 next， next执行的时候 当前queue[index]执行完，进入下一个queue[index+1]
+     * @param {*} function 迭代完成后的回调函数
+     */
     runQueue(queue, iterator, () => {
       // wait until async components are resolved before
       // 在解析异步组件之前
       // extracting in-component enter guards
-      // 组件内部的beforeRouteEnter
+      // 6. 组件内部的 beforeRouteEnter
       const enterGuards = extractEnterGuards(activated)
-      // 全部的beforeResolve
+      // 7. 全部的beforeResolve
       const queue = enterGuards.concat(this.router.resolveHooks)
       runQueue(queue, iterator, () => {
         if (this.pending !== route) {
           return abort(createNavigationCancelledError(current, route))
         }
         this.pending = null
-        // 导航被确认
+        // 8. 导航被确认
         onComplete(route)
         if (this.router.app) {
           this.router.app.$nextTick(() => {
+            // 9. 用创建好的实例调用 beforeRouteEnter 守卫中传给 next 的回调函数
             handleRouteEntered(route)
           })
         }
@@ -1761,12 +1790,9 @@ export class History {
 ```
 
 小结：
-> runQueue其实不难，它只是利用了回到函数与递归完成异步的功能
-> beforeRouteEnter这里其实最关键的就是对用户自定义的钩子做了一层wrapped，以便可以在整个导航流程末尾异步执行next函数内传入的函数。
+> `runQueue`其实不难，它只是利用了回到函数与递归完成异步的功能
+> `beforeRouteEnter`这里其实最关键的就是对用户自定义的钩子做了一层wrapped，以便可以在整个导航流程末尾异步执行next函数内传入的函数。
 > 另外，runQueue的执行与钩子函数的next，可能有点绕，只要区分开，整体都很简单
-> 本文只介绍了基类的方法，abstract/hash/history都继承了基类方法，其push等方法也都会调用transitionTo方法。因此掌握了基本的方法，其他问题不大。
-
-
 
 <br/>
 
@@ -1812,7 +1838,6 @@ TODO 那么路由引入的组件，如何展示在`<router-view />`上？
 
 
 
-
 ## TODO List
 
 - [x] Vue-router注册插件的原理
@@ -1842,6 +1867,8 @@ TODO 那么路由引入的组件，如何展示在`<router-view />`上？
 ## 各种 API 详解
 
 ### History 类详细分析
+
+TODO 详细写写里面的函数都有什么用途
 
 ```js
 // src/history/base.js
