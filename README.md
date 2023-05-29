@@ -1842,9 +1842,9 @@ TODO 那么路由引入的组件，如何展示在`<router-view />`上？
 
 - [x] Vue-router注册插件的原理
 
-- [ ] 初始化router实例原理之match匹配器
+- [x] 初始化router实例原理之match匹配器
 
-- [ ] 初始化router实例原理之history对象
+- [x] 初始化router实例原理之history对象
 
 - [ ] router全局路由守卫
 
@@ -1852,9 +1852,9 @@ TODO 那么路由引入的组件，如何展示在`<router-view />`上？
 
 - [ ] 组件内路由守卫
 
-- [ ] `<router-view>`组件的原理
+- [x] `<router-view>`组件的原理
 
-- [ ] `<router-link>`组件的原理
+- [x] `<router-link>`组件的原理
 
 
 
@@ -1867,8 +1867,6 @@ TODO 那么路由引入的组件，如何展示在`<router-view />`上？
 ## 各种 API 详解
 
 ### History 类详细分析
-
-TODO 详细写写里面的函数都有什么用途
 
 ```js
 // src/history/base.js
@@ -1917,16 +1915,19 @@ export class History {
 
   /**
    * 注册回调
+   * 在index.js的init方法中用到
    */
   listen (cb: Function)
 
   /**
    * 准备函数
+   * 在index.js的onReady方法中用到
    */
   onReady (cb: Function, errorCb: ?Function)
 
   /**
    * 错误函数
+   * 在index.js的onReady方法中用到
    */
   onError (errorCb: Function)
 
@@ -1941,17 +1942,136 @@ export class History {
   confirmTransition (route: Route, onComplete: Function, onAbort?: Function) 
 
   /**
-   * 路由更新
+   * 更新当前路由
    */
   updateRoute (route: Route) 
 
-  setupListeners () 
+  /**
+   * 定义一个空函数，让子类重写
+   */
+  setupListeners ()
 
+  /**
+   * 重置操作
+   */
   teardown () 
 }
 
 // 其余的是base.js的私有函数，为该类服务
 // ...
+```
+
+
+```js
+// src/history/hash.js
+export class HashHistory extends History {
+  constructor (router: Router, base: ?string, fallback: boolean) {
+    super(router, base)
+    // 如果是回退hash的情况，并且判断当前路径是否有/#/。如果没有将会添加'/#/'
+    if (fallback && checkFallback(this.base)) {
+      return
+    }
+    // 保证 hash 值以/开头，如果没有则开头添加/
+    ensureSlash()
+  }
+
+  /**
+   * 重写父类监听方法
+   * - 监听'popstate' / 'hashchange' 事件，执行对应的内容
+   * - 记录lister，并对函数进行容错处理
+   */
+  setupListeners () 
+
+  /**
+   * 向路由栈中添加一个路由对象，跳转路由
+   * @param {*} location 路径
+   * @param {*} onComplete 成功的回调
+   * @param {*} onAbort 终止的回调
+   */
+  push (location: RawLocation, onComplete?: Function, onAbort?: Function) 
+
+  /**
+   * 向路由栈中添加一个路由对象，替换路由
+   * @param {*} location 路径
+   * @param {*} onComplete 成功的回调
+   * @param {*} onAbort 终止的回调
+   */
+  replace (location: RawLocation, onComplete?: Function, onAbort?: Function)
+
+  /**
+   * 向前或向后转到该路由对象
+   * @param {*} n 数字
+   */
+  go (n: number)
+
+  /**
+   * 如果不是当前的路由，则根据入参push来执行添加hash或替换hash
+   */
+  ensureURL (push?: boolean)
+
+  /**
+   * 获取“#”后面的hash
+   */
+  getCurrentLocation () 
+}
+```
+
+**setupListeners**
+我们在通过点击后退, 前进按钮或者调用back, forward, go方法的时候。我们没有主动更新_app.route和current。我们该如何触发RouterView的更新呢？
+通过在window上监听popstate，或者hashchange事件。在事件的回调中，调用transitionTo方法完成对_route和current的更新。
+或者可以这样说，在使用push，replace方法的时候，hash的更新在_route更新的后面。而使用go, back时，hash的更新在_route更新的前面。
+
+
+```js
+// src/history/html5.js
+export class HTML5History extends History {
+  _startLocation: string
+
+  constructor (router: Router, base: ?string) {
+    // 调用父类，并传入VueRouter路由实例和基础路径
+    super(router, base)
+    // 获取根路径
+    this._startLocation = getLocation(this.base)
+  }
+
+  /**
+   * 重写父类监听方法
+   */
+  setupListeners () 
+
+  /**
+   * 前进对应步数
+   * @param {number} n 传入需要前进后退的数字
+   */
+  go (n: number) 
+
+  /**
+   * 导航到不同的 location 向 history 栈添加一个新的记录
+   * @param {*} location 
+   * @param {*} onComplete 
+   * @param {*} onAbort 
+   */
+  push (location: RawLocation, onComplete?: Function, onAbort?: Function) 
+
+  /**
+   * 导航到不同的 location 替换掉当前的 history 记录
+   * @param {*} location 
+   * @param {*} onComplete 
+   * @param {*} onAbort 
+   */
+  replace(location: RawLocation, onComplete?: Function, onAbort?: Function) 
+
+  /**
+   * 更新 URL
+   * @param {*} push 
+   */
+  ensureURL (push?: boolean) 
+
+  /**
+   * 获取根路径
+   */
+  getCurrentLocation (): string
+}
 ```
 
 <br/>

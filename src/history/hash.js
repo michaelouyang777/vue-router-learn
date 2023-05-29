@@ -10,7 +10,6 @@ import { pushState, replaceState, supportsPushState } from '../util/push-state'
 export class HashHistory extends History {
   constructor (router: Router, base: ?string, fallback: boolean) {
     super(router, base)
-    // check history fallback deeplinking
     // 如果是回退hash的情况，并且判断当前路径是否有/#/。如果没有将会添加'/#/'
     if (fallback && checkFallback(this.base)) {
       return
@@ -19,45 +18,64 @@ export class HashHistory extends History {
     ensureSlash()
   }
 
-  // this is delayed until the app mounts
-  // to avoid the hashchange listener being fired too early
-  setupListeners () {
+  /**
+   * 重写父类监听方法
+   * - 监听'popstate' / 'hashchange' 事件，执行对应的内容
+   * - 记录lister，并对函数进行容错处理
+   */
+  setupListeners() {
+    // 1. 如果存在监听队列，则return
     if (this.listeners.length > 0) {
       return
     }
 
+    // 2. 获取当前路由
     const router = this.router
+
     const expectScroll = router.options.scrollBehavior
     const supportsScroll = supportsPushState && expectScroll
-
     if (supportsScroll) {
       this.listeners.push(setupScroll())
     }
 
+    /**
+     * 监听事件后的回调
+     */
     const handleRoutingEvent = () => {
       const current = this.current
       if (!ensureSlash()) {
         return
       }
       this.transitionTo(getHash(), route => {
+        // 如果支持history模式，并且存在scrollBehavior，则滚动到对应位置
         if (supportsScroll) {
           handleScroll(this.router, route, current, true)
         }
+        // 如果不支持history模式，则替换hash
         if (!supportsPushState) {
           replaceHash(route.fullPath)
         }
       })
     }
+    // 3. 如果支持history模式，则监听'popstate'事件，否则监听'hashchange'事件
     const eventType = supportsPushState ? 'popstate' : 'hashchange'
     window.addEventListener(
       eventType,
       handleRoutingEvent
     )
+
+    // 4. 向listeners记录需要移除的事件
     this.listeners.push(() => {
       window.removeEventListener(eventType, handleRoutingEvent)
     })
   }
 
+  /**
+   * 向路由栈中添加一个路由对象，跳转路由
+   * @param {*} location 路径
+   * @param {*} onComplete 成功的回调
+   * @param {*} onAbort 终止的回调
+   */
   push (location: RawLocation, onComplete?: Function, onAbort?: Function) {
     const { current: fromRoute } = this
     this.transitionTo(
@@ -71,6 +89,12 @@ export class HashHistory extends History {
     )
   }
 
+  /**
+   * 向路由栈中添加一个路由对象，替换路由
+   * @param {*} location 路径
+   * @param {*} onComplete 成功的回调
+   * @param {*} onAbort 终止的回调
+   */
   replace (location: RawLocation, onComplete?: Function, onAbort?: Function) {
     const { current: fromRoute } = this
     this.transitionTo(
@@ -84,10 +108,17 @@ export class HashHistory extends History {
     )
   }
 
+  /**
+   * 向前或向后转到该路由对象
+   * @param {*} n 数字
+   */
   go (n: number) {
     window.history.go(n)
   }
 
+  /**
+   * 如果不是当前的路由，则根据入参push来执行添加hash或替换hash
+   */
   ensureURL (push?: boolean) {
     const current = this.current.fullPath
     if (getHash() !== current) {
@@ -95,6 +126,9 @@ export class HashHistory extends History {
     }
   }
 
+  /**
+   * 获取“#”后面的hash
+   */
   getCurrentLocation () {
     return getHash()
   }
@@ -149,6 +183,7 @@ function getUrl (path) {
   return `${base}#${path}`
 }
 
+// 添加hash记录
 function pushHash (path) {
   if (supportsPushState) {
     pushState(getUrl(path))

@@ -20,19 +20,27 @@ export class HTML5History extends History {
     this._startLocation = getLocation(this.base)
   }
 
-  setupListeners () {
+  /**
+   * 重写父类监听方法
+   */
+  setupListeners() {
+    // 1. 如果存在监听队列，则return
     if (this.listeners.length > 0) {
       return
     }
 
+    // 2. 获取当前路由
     const router = this.router
+
     const expectScroll = router.options.scrollBehavior
     const supportsScroll = supportsPushState && expectScroll
-
     if (supportsScroll) {
       this.listeners.push(setupScroll())
     }
 
+    /**
+     * 监听事件后的回调
+     */
     const handleRoutingEvent = () => {
       const current = this.current
 
@@ -44,12 +52,16 @@ export class HTML5History extends History {
       }
 
       this.transitionTo(location, route => {
+        // 如果支持history模式，并且存在scrollBehavior，则滚动到对应位置
         if (supportsScroll) {
           handleScroll(router, route, current, true)
         }
       })
     }
+    // 3. 监听'popstate'事件
     window.addEventListener('popstate', handleRoutingEvent)
+
+    // 4. 向listeners记录需要移除的事件
     this.listeners.push(() => {
       window.removeEventListener('popstate', handleRoutingEvent)
     })

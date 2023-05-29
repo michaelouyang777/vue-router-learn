@@ -204,11 +204,19 @@ export default class VueRouter {
   afterEach (fn: Function): Function {
     return registerHook(this.afterHooks, fn)
   }
-
+  
+  /**
+   * 对外暴露 API
+   * https://v3.router.vuejs.org/zh/api/#router-onready
+   */
   onReady (cb: Function, errorCb?: Function) {
     this.history.onReady(cb, errorCb)
   }
 
+  /**
+   * 对外暴露 API
+   * https://v3.router.vuejs.org/zh/api/#router-onerror
+   */
   onError (errorCb: Function) {
     this.history.onError(errorCb)
   }

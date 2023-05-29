@@ -69,6 +69,7 @@ export class History {
 
   /**
    * 注册回调
+   * 在index.js的init方法中用到
    */
   listen (cb: Function) {
     this.cb = cb
@@ -76,6 +77,7 @@ export class History {
   
   /**
    * 准备函数
+   * 在index.js的onReady方法中用到
    */
   onReady (cb: Function, errorCb: ?Function) {
     if (this.ready) {
@@ -90,6 +92,7 @@ export class History {
 
   /**
    * 错误函数
+   * 在index.js的onError方法中用到
    */
   onError (errorCb: Function) {
     this.errorCbs.push(errorCb)
@@ -324,17 +327,23 @@ export class History {
   }
 
   /**
-   * 路由更新
+   * 更新当前路由
    */
   updateRoute (route: Route) {
     this.current = route
     this.cb && this.cb(route)
   }
 
+  /**
+   * 定义一个空函数，让子类重写
+   */
   setupListeners () {
     // Default implementation is empty
   }
 
+  /**
+   * 重置操作
+   */
   teardown () {
     // clean up event listeners
     // https://github.com/vuejs/vue-router/issues/2341

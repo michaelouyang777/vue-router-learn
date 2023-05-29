@@ -1,3 +1,4 @@
+
 /* @flow */
 
 import { inBrowser } from './dom'
@@ -5,7 +6,7 @@ import { saveScrollPosition } from './scroll'
 import { genStateKey, setStateKey, getStateKey } from './state-key'
 import { extend } from './misc'
 
-// 判断环境是否支持 history.pushState
+// 判断环境是否支持 history.pushState，说明支持history模式
 export const supportsPushState =
   inBrowser &&
   (function () {
