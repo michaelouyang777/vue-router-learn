@@ -2455,6 +2455,54 @@ HashHistory和HTML5History捕获到变化后会对应执行push或replace方法�
 
 
 
+### 学习所得
+
+1. 看`class History`了解到，ES也可以在实例属性**声明类型**
+   示例：
+   ```js
+    export class History {
+      base: string // string类型
+      ready: boolean // boolean类型
+      cb: (r: Route) => void // 函数类型（写法一：直接写一个箭头函数，具体传入的类型）
+      cleanupListeners: Function // 函数类型（写法二：写Functions类型）
+      router: Router // 自定义类型
+      pending: ?Route // 自定义类型（非必需）
+      readyCbs: Array<Function> // 数组类型（可以加入范型）
+    }
+   ```
+
+2. 看`class History`了解到，ES可以**声明接口**，并**调用抽象方法**。
+   通过在函数名前面添加`+`，再在后面声明函数类型（直接写一个箭头函数，具体传入的类型）。
+   示例：
+   ```js
+    export class History {
+      // implemented by sub-classes
+      // 以下这些方法由子类去实现
+      +go: (n: number) => void
+      +push: (loc: RawLocation, onComplete?: Function, onAbort?: Function) => void
+      +replace: (loc: RawLocation, onComplete?: Function, onAbort?: Function) => void
+      +ensureURL: (push?: boolean) => void
+      +getCurrentLocation: () => string
+      +setupListeners: Function  
+    }
+   ```
+   另外，在父类中的实例方法内，可以通过`this`调用该函数声明，实现由父类子类的抽象方法调用。
+   示例：
+   ```js
+    export class History {
+      // implemented by sub-classes
+      +ensureURL: (push?: boolean) => void
+
+      confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
+        if (
+          // ...
+        ) {
+          // 此时这个this是子类（那个子类实例化了，this就是那个子类），因此可以调用到子类已声明的方法
+          this.ensureURL()
+        }
+      }
+    }
+   ```
 
 
 <br/>
