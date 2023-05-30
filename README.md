@@ -1517,11 +1517,11 @@ init方法中主要做了如下几件事：
 `transitionTo` 函数做了以下几件事情：
 1. 通过 VueRouter 实例的 matcher 方法返回匹配到 route 对象。
 2. 调用 `confirmTransition` 方法(传入参数为 匹配的路由对象，成功的回调函数，失败的回调函数)。
-   - 成功的回调函数：<br/>
-       <1> 更新 history.current 属性的值为匹配后的 router；<br/>
-       <2> 调用 onComplete 函数；<br/>
-       <3> 调用全局的 afterEach 钩子。<br/>
-   - 失败的回调函数：<br/>
+   - 成功的回调函数：
+       <1> 更新 history.current 属性的值为匹配后的 router；
+       <2> 调用 onComplete 函数；
+       <3> 调用全局的 afterEach 钩子。
+   - 失败的回调函数：
        <1> 触发失败的回调 onAbort
 
 ```js
@@ -1694,7 +1694,7 @@ export class History {
     const queue: Array<?NavigationGuard> = [].concat(
       // 1. 组件内部 beforeRouteLeave
       extractLeaveGuards(deactivated),
-      // 2. 全部前置守卫 beforeEach
+      // 2. 全局前置守卫 beforeEach
       this.router.beforeHooks,
       // 3. vue组件内部 beforeRouteUpdate
       extractUpdateHooks(updated),
@@ -1767,7 +1767,7 @@ export class History {
       // extracting in-component enter guards
       // 6. 组件内部的 beforeRouteEnter
       const enterGuards = extractEnterGuards(activated)
-      // 7. 全部的beforeResolve
+      // 7. 全局的beforeResolve
       const queue = enterGuards.concat(this.router.resolveHooks)
       runQueue(queue, iterator, () => {
         if (this.pending !== route) {
@@ -1832,6 +1832,287 @@ TODO `registerInstance`函数内的逻辑还不明白为什么这样写是注册
 <br/>
 <br/>
 
+### 其他
+
+#### 路由守卫是如何定义的？
+
+##### 全局路由守卫
+
+全局路由守卫是VueRouter类中的几个实例方法(`beforeEach`、`beforeResolve`、`afterEach`)
+
+```js
+// src/index.js
+// 声明部分
+
+export default class VueRouter {
+
+  /**
+   * Router 实例方法 beforeEach 全局前置的导航守卫。
+   * 当一个导航触发时，全局前置守卫按照创建顺序调用。
+   * 守卫是异步解析执行，此时导航在所有守卫 resolve 完之前一直处于 等待中。
+   * @param {Function} fn (to, from, next) => {}
+   * @memberof VueRouter
+   *
+   */
+  beforeEach (fn: Function): Function {
+    return registerHook(this.beforeHooks, fn)
+  }
+
+  beforeResolve (fn: Function): Function {
+    return registerHook(this.resolveHooks, fn)
+  }
+  
+  /**
+   * Router 实例方法 afterEach 全局后置钩子
+   * @param {Function} fn (to, from) => {}
+   * @memberof VueRouter
+   */
+  afterEach (fn: Function): Function {
+    return registerHook(this.afterHooks, fn)
+  }
+}
+
+/**
+ * 注册路由扣子
+ * @param {Array<any>} list 队列
+ * @param {Function} fn 回调
+ * @returns {Function} 返回一个函数体
+ */
+function registerHook (list: Array<any>, fn: Function): Function {
+  list.push(fn)
+  return () => {
+    const i = list.indexOf(fn)
+    if (i > -1) list.splice(i, 1)
+  }
+}
+```
+
+```js
+// src/history/base.js
+// 使用部分
+
+export class History {
+
+  transitionTo (
+    location: RawLocation,
+    onComplete?: Function,
+    onAbort?: Function
+  ) {
+    let route
+    try {
+      // 获取路由匹配信息
+      route = this.router.match(location, this.current)
+    } catch (e) {
+      this.errorCbs.forEach(cb => {
+        cb(e)
+      })
+      throw e
+    }
+    
+    const prev = this.current
+    this.confirmTransition(
+      route,
+      () => {
+        // ...
+        // 触发跳转后的路由钩子 afterEach
+        this.router.afterHooks.forEach(hook => {
+          hook && hook(route, prev)
+        })
+        // ...
+      },
+      err => {
+        // ...
+      }
+    )
+  }
+
+  confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
+    
+    // 获取所有需要执行的路由守卫
+    const queue: Array<?NavigationGuard> = [].concat(
+      // ...
+      // 全局前置守卫 beforeEach 数组
+      this.router.beforeHooks,
+      // ...
+    )
+
+    runQueue(queue, iterator, () => {
+      // 全局的beforeResolve 数组
+      const queue = enterGuards.concat(this.router.resolveHooks)
+
+      runQueue(queue, iterator, () => {
+        if (this.pending !== route) {
+          return abort(createNavigationCancelledError(current, route))
+        }
+       
+      })
+    })
+  }
+}
+```
+
+路由独享的守卫(`beforeEnter`)
+
+```js
+// src/create-route-map.js
+// 声明部分
+
+function addRouteRecord (
+  pathList: Array<string>,
+  pathMap: Dictionary<RouteRecord>,
+  nameMap: Dictionary<RouteRecord>,
+  route: RouteConfig,
+  parent?: RouteRecord,
+  matchAs?: string
+) {
+
+  // 定义路由记录构建选项
+  const record: RouteRecord = {
+    // ...
+
+    // beforeEnter由用户传入
+    beforeEnter: route.beforeEnter, // 进入前钩子函数，形如：(to: Route, from: Route, next: Function) => void;
+    
+    // ...
+  }
+}
+```
+
+```js
+// src/history/base.js
+// 使用部分
+
+export class History {
+
+  confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
+    
+    // 获取所有需要执行的路由守卫
+    const queue: Array<?NavigationGuard> = [].concat(
+      // ...
+      // 路由配置里面的 beforeEnter
+      activated.map(m => m.beforeEnter),
+    )
+
+  }
+}
+```
+
+组件内的守卫(`beforeRouteEnter`、`beforeRouteUpdate`、`beforeRouteLeave`)
+
+```js
+// src/history/base.js
+// 使用部分
+
+export class History {
+
+  transitionTo (
+    location: RawLocation,
+    onComplete?: Function,
+    onAbort?: Function
+  ) {
+    let route
+    try {
+      // 获取路由匹配信息
+      route = this.router.match(location, this.current)
+    } catch (e) {
+      this.errorCbs.forEach(cb => {
+        cb(e)
+      })
+      throw e
+    }
+    
+    const prev = this.current
+    this.confirmTransition(
+      route,
+      () => {
+        // ...
+      },
+      err => {
+        // ...
+      }
+    )
+  }
+
+  confirmTransition (route: Route, onComplete: Function, onAbort?: Function) {
+    // 获取所有需要激活，更新，销毁的路由
+    const { updated, deactivated, activated } = resolveQueue(
+      this.current.matched,
+      route.matched
+    )
+    // 获取所有需要执行的路由守卫
+    const queue: Array<?NavigationGuard> = [].concat(
+      // 1. 组件内部 beforeRouteLeave
+      extractLeaveGuards(deactivated),
+      // 2. 全局前置守卫 beforeEach 数组
+      this.router.beforeHooks,
+      // 3. vue组件内部 beforeRouteUpdate
+      extractUpdateHooks(updated),
+      // 4. 路由配置里面的 beforeEnter
+      activated.map(m => m.beforeEnter),
+      // 5. 解析异步组件
+      resolveAsyncComponents(activated)
+    )
+
+    runQueue(queue, iterator, () => {
+      // 6. 组件内部的 beforeRouteEnter
+      const enterGuards = extractEnterGuards(activated)
+      // 7. 全局的 beforeResolve 数组
+      const queue = enterGuards.concat(this.router.resolveHooks)
+
+      runQueue(queue, iterator, () => {
+        if (this.pending !== route) {
+          return abort(createNavigationCancelledError(current, route))
+        }
+       
+      })
+    })
+  }
+}
+
+function extractLeaveGuards (deactivated: Array<RouteRecord>): Array<?Function> {
+  return extractGuards(deactivated, 'beforeRouteLeave', bindGuard, true)
+}
+
+function extractUpdateHooks (updated: Array<RouteRecord>): Array<?Function> {
+  return extractGuards(updated, 'beforeRouteUpdate', bindGuard)
+}
+
+function extractEnterGuards (
+  activated: Array<RouteRecord>
+): Array<?Function> {
+  return extractGuards(
+    activated,
+    'beforeRouteEnter',
+    // 此回调函数会处理提取的原始钩子函数
+    (guard, _, match, key) => {
+      return bindEnterGuard(guard, match, key)
+    }
+  )
+}
+```
+
+[完整的导航解析流程](https://v3.router.vuejs.org/zh/guide/advanced/navigation-guards.html#%E5%AE%8C%E6%95%B4%E7%9A%84%E5%AF%BC%E8%88%AA%E8%A7%A3%E6%9E%90%E6%B5%81%E7%A8%8B)
+1. 导航被触发。
+2. 在失活的组件里调用 `beforeRouteLeave` 守卫。
+3. 调用全局的 beforeEach 守卫。
+4. 在重用的组件里调用 `beforeRouteUpdate` 守卫 (2.2+)。
+5. 在路由配置里调用 beforeEnter。
+6. 解析异步路由组件。
+7. 在被激活的组件里调用 `beforeRouteEnter。`
+8. 调用全局的 beforeResolve 守卫 (2.5+)。
+9. 导航被确认。
+10. 调用全局的 afterEach 钩子。
+11. 触发 DOM 更新。
+12. 调用 beforeRouteEnter 守卫中传给 next 的回调函数，创建好的组件实例会作为回调函数的参数传入。
+
+
+
+<br/>
+<br/>
+<br/>
+<br/>
+<br/>
+
 
 TODO 那么路由引入的组件，如何展示在`<router-view />`上？
 
@@ -1846,11 +2127,11 @@ TODO 那么路由引入的组件，如何展示在`<router-view />`上？
 
 - [x] 初始化router实例原理之history对象
 
-- [ ] router全局路由守卫
+- [x] router全局路由守卫
 
-- [ ] route路由守卫
+- [x] route路由守卫
 
-- [ ] 组件内路由守卫
+- [x] 组件内路由守卫
 
 - [x] `<router-view>`组件的原理
 
@@ -2153,7 +2434,7 @@ HashHistory和HTML5History捕获到变化后会对应执行push或replace方法�
 
 ## 总结
 
-总结一下整个流程
+### 总结一下整个流程
 
 1、`install`安装插件
     (1)通过Vue实例，使用 `minxin` 混入 `beforeCreate`、`destroyed` 生命周期，等待初始化Vue实例时执行相关操作。

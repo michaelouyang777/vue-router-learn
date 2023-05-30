@@ -234,7 +234,7 @@ export class History {
     const queue: Array<?NavigationGuard> = [].concat(
       // 1. 组件内部 beforeRouteLeave
       extractLeaveGuards(deactivated),
-      // 2. 全部前置守卫 beforeEach
+      // 2. 全局前置守卫 beforeEach 数组
       this.router.beforeHooks,
       // 3. vue组件内部 beforeRouteUpdate
       extractUpdateHooks(updated),
@@ -307,8 +307,9 @@ export class History {
       // extracting in-component enter guards
       // 6. 组件内部的 beforeRouteEnter
       const enterGuards = extractEnterGuards(activated)
-      // 7. 全部的beforeResolve
+      // 7. 全局的 beforeResolve 数组
       const queue = enterGuards.concat(this.router.resolveHooks)
+      
       runQueue(queue, iterator, () => {
         if (this.pending !== route) {
           return abort(createNavigationCancelledError(current, route))

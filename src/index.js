@@ -182,7 +182,6 @@ export default class VueRouter {
    * Router 实例方法 beforeEach 全局前置的导航守卫。
    * 当一个导航触发时，全局前置守卫按照创建顺序调用。
    * 守卫是异步解析执行，此时导航在所有守卫 resolve 完之前一直处于 等待中。
-   *
    * @param {Function} fn (to, from, next) => {}
    * @memberof VueRouter
    *
@@ -197,7 +196,6 @@ export default class VueRouter {
   
   /**
    * Router 实例方法 afterEach 全局后置钩子
-   *
    * @param {Function} fn (to, from) => {}
    * @memberof VueRouter
    */
@@ -361,6 +359,12 @@ export default class VueRouter {
   }
 }
 
+/**
+ * 注册路由扣子
+ * @param {Array<any>} list 队列
+ * @param {Function} fn 回调
+ * @returns {Function} 返回一个函数体
+ */
 function registerHook (list: Array<any>, fn: Function): Function {
   list.push(fn)
   return () => {
